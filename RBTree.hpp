@@ -81,7 +81,7 @@ struct RBTree
                 mostClose->setRight(node);
             }
 
-            insertFixUp(node);
+            // insertFixUp(node);
         }
     }
 
@@ -226,20 +226,26 @@ struct RBTree
 
                 if (node->parent == grandParent->right && node == node->parent->left)
                 {
+                    NodeType *next = node->parent;
                     rotateRight(node->parent);
                     rotateLeft(grandParent);
 
                     node->isRed = false;
                     grandParent->isRed = true;
+
+                    node = next;
                 }
 
                 if (node->parent == grandParent->left && node == node->parent->right)
                 {
+                    NodeType *next = node->parent;
                     rotateLeft(node->parent);
                     rotateRight(grandParent);
 
                     node->isRed = false;
                     grandParent->isRed = true;
+
+                    node = next;
                 }
             }
         }
