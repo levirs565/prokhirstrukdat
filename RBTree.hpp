@@ -205,35 +205,26 @@ struct RBTree
             }
             else
             {
-                if (node->parent == node->parent->parent->right && node == node->parent->right)
+                if (node->parent == node->parent->parent->right)
                 {
-                    node->parent->isRed = false;
-                    node->parent->parent->isRed = true;
-
-                    rotateLeft(node->parent->parent);
-                }
-                else if (node->parent == node->parent->parent->left && node == node->parent->left)
-                {
-                    node->parent->isRed = false;
-                    node->parent->parent->isRed = true;
-
-                    rotateRight(node->parent->parent);
-                }
-                else if (node->parent == node->parent->parent->right && node == node->parent->left)
-                {
-                    node = node->parent;
-                    rotateRight(node);
+                    if (node == node->parent->left)
+                    {
+                        node = node->parent;
+                        rotateRight(node);
+                    }
 
                     node->parent->isRed = false;
                     node->parent->parent->isRed = true;
 
                     rotateLeft(node->parent->parent);
                 }
-                else if (node->parent == node->parent->parent->left && node == node->parent->right)
+                else if (node->parent == node->parent->parent->left)
                 {
-                    node = node->parent;
-                    rotateLeft(node);
-
+                    if (node == node->parent->right)
+                    {
+                        node = node->parent;
+                        rotateLeft(node);
+                    }
                     node->parent->isRed = false;
                     node->parent->parent->isRed = true;
 
