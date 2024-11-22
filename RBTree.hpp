@@ -36,11 +36,10 @@ template <typename T, typename K>
 struct RBTree
 {
     using NodeType = RBNode<T>;
-    using KeyType = std::invoke_result_t<K, const T&>;
     NodeType *root = nullptr;
-    K getKey;
+    K isLess;
 
-    RBTree(K keyGetter) : getKey(keyGetter) {}
+    RBTree(K comparer) : isLess(comparer) {}
 
     void insert(T value)
     {
@@ -61,21 +60,19 @@ struct RBTree
             {
                 mostClose = current;
 
-                if (getKey(value) == getKey(current->value))
-                {
-                    throw std::domain_error("Value has been added");
-                }
-                else if (getKey(value) < getKey(current->value))
+                if (isLess(value, current->value))
                 {
                     current = current->left;
                 }
-                else
+                else if (isLess(current->value, value))
                 {
                     current = current->right;
+                } else {
+                    throw std::domain_error("Value has been added");
                 }
             }
 
-            if (getKey(value) < getKey(mostClose->value))
+            if (isLess(value, mostClose->value))
             {
                 mostClose->setLeft(node);
             }
@@ -90,8 +87,8 @@ struct RBTree
 
     void internalFindBetween(
         NodeType *node,
-        const KeyType &from,
-        const KeyType &to,
+        const T &from,
+        const T &to,
         const std::function<void(NodeType *)> &visitor)
     {
         if (node == nullptr)
@@ -99,13 +96,16 @@ struct RBTree
             return;
         }
 
-        if (getKey(node->value) >= from && getKey(node->value) <= to)
+        // node->value >= from          node->value <= to
+        // !(node->value < from)        !(node->value > to)
+        //                              !(to < node->value)
+        if (!isLess(node->value, from) && !isLess(to, node->value))
         {
             internalFindBetween(node->left, from, to, visitor);
             visitor(node);
             internalFindBetween(node->right, from, to, visitor);
         }
-        else if (getKey(node->value) < from)
+        else if (isLess(node->value, from))
         {
             internalFindBetween(node->right, from, to, visitor);
         }
@@ -116,8 +116,8 @@ struct RBTree
     }
 
     void findBetween(
-        const KeyType &from,
-        const KeyType &to,
+        const T &from,
+        const T &to,
         const std::function<void(NodeType *)> &visitor)
     {
         internalFindBetween(root, from, to, visitor);

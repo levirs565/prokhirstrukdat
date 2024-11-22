@@ -9,13 +9,13 @@ struct Buku {
 
 };
 
-std::string BukuNamaKey(const Buku& buku) {
-    return buku.nama;
+bool BukuNamaCompare(const Buku& a, const Buku& b) {
+    return a.nama < b.nama;
 }
 
 int main()
 {
-    RBTree<Buku, decltype(BukuNamaKey)*> rb(&BukuNamaKey);
+    RBTree<Buku, decltype(BukuNamaCompare)*> rb(&BukuNamaCompare);
 
     std::vector<std::string> strs;
 
@@ -27,7 +27,7 @@ int main()
     std::random_device rd;
     std::mt19937 rng(rd());
 
-    // std::shuffle(strs.begin(), strs.end(), rng);
+    std::shuffle(strs.begin(), strs.end(), rng);
 
     for (auto ch : strs)
     {
@@ -38,7 +38,7 @@ int main()
         Buku last{""};
         auto visitor = [&](RBNode<Buku> *node)
         {
-            if (BukuNamaKey(node->value) < BukuNamaKey(last))
+            if (BukuNamaCompare(node->value, last))
             {
                 throw std::domain_error("Aneh");
             }
@@ -47,6 +47,8 @@ int main()
         rb.inorder(rb.root, visitor);
     }
 
-    rb.findBetween("F", "X", [](RBNode<Buku> *node)
+    rb.insert(Buku{"A"});
+
+    rb.findBetween(Buku{"F"}, Buku{"X"}, [](RBNode<Buku> *node)
                    { std::cout << node->value.nama << std::endl; });
 }
