@@ -67,7 +67,9 @@ struct RBTree
                 else if (isLess(current->value, value))
                 {
                     current = current->right;
-                } else {
+                }
+                else
+                {
                     throw std::domain_error("Value has been added");
                 }
             }
@@ -81,7 +83,7 @@ struct RBTree
                 mostClose->setRight(node);
             }
 
-            // insertFixUp(node);
+            insertFixUp(node);
         }
     }
 
@@ -183,69 +185,59 @@ struct RBTree
     {
         while (node != root && node->parent->isRed)
         {
-            NodeType *grandParent = node->parent->parent;
             NodeType *uncle = nullptr;
 
-            assert(grandParent != nullptr);
-
-            if (grandParent->left == node->parent)
+            if (node->parent->parent->left == node->parent)
             {
-                uncle = grandParent->right;
+                uncle = node->parent->parent->right;
             }
             else
             {
-                uncle = grandParent->left;
+                uncle = node->parent->parent->left;
             }
-
-            // assert(uncle != nullptr);
 
             if (uncle && uncle->isRed)
             {
                 node->parent->isRed = false;
                 uncle->isRed = false;
-                grandParent->isRed = true;
-                node = grandParent;
+                node->parent->parent->isRed = true;
+                node = node->parent->parent;
             }
             else
             {
-                if (node->parent == grandParent->right && node == node->parent->right)
+                if (node->parent == node->parent->parent->right && node == node->parent->right)
                 {
-                    rotateLeft(grandParent);
+                    node->parent->isRed = false;
+                    node->parent->parent->isRed = true;
+
+                    rotateLeft(node->parent->parent);
+                }
+                else if (node->parent == node->parent->parent->left && node == node->parent->left)
+                {
+                    node->parent->isRed = false;
+                    node->parent->parent->isRed = true;
+
+                    rotateRight(node->parent->parent);
+                }
+                else if (node->parent == node->parent->parent->right && node == node->parent->left)
+                {
+                    node = node->parent;
+                    rotateRight(node);
 
                     node->parent->isRed = false;
-                    grandParent->isRed = true;
-                }
+                    node->parent->parent->isRed = true;
 
-                if (node->parent == grandParent->left && node == node->parent->left)
+                    rotateLeft(node->parent->parent);
+                }
+                else if (node->parent == node->parent->parent->left && node == node->parent->right)
                 {
-                    rotateRight(grandParent);
+                    node = node->parent;
+                    rotateLeft(node);
 
                     node->parent->isRed = false;
-                    grandParent->isRed = true;
-                }
+                    node->parent->parent->isRed = true;
 
-                if (node->parent == grandParent->right && node == node->parent->left)
-                {
-                    NodeType *next = node->parent;
-                    rotateRight(node->parent);
-                    rotateLeft(grandParent);
-
-                    node->isRed = false;
-                    grandParent->isRed = true;
-
-                    node = next;
-                }
-
-                if (node->parent == grandParent->left && node == node->parent->right)
-                {
-                    NodeType *next = node->parent;
-                    rotateLeft(node->parent);
-                    rotateRight(grandParent);
-
-                    node->isRed = false;
-                    grandParent->isRed = true;
-
-                    node = next;
+                    rotateRight(node->parent->parent);
                 }
             }
         }
