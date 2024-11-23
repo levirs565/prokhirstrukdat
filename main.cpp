@@ -97,7 +97,7 @@ public:
     {
         Timer timer;
         timer.start();
-        CSVReader reader("./data/books.csv", ';');
+        CSVReader<CSVReaderIOBuffSync> reader("./data/books.csv", ';');
         reader.startRead();
 
         int isbnIndex = reader.findHeaderIndex("ISBN");

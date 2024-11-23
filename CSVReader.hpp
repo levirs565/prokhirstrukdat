@@ -9,36 +9,94 @@
 #include <cctype>
 #include <algorithm>
 
-struct CSVReaderIOSync {
+constexpr size_t sCSVReaderIOBuffSize = 64 * 1024;
+
+struct CSVReaderIOBuffSync
+{
+    std::ifstream stream;
+    size_t bufferIndex = 0;
+    size_t bufferSize = 0;
+    std::vector<char> buffer = std::vector<char>(sCSVReaderIOBuffSize);
+    bool isEOf = false;
+
+    void open(const std::string &filename)
+    {
+        stream.open(filename);
+
+        if (!stream)
+            throw std::domain_error("File not found");
+
+        fillBuffer();
+    }
+
+    void fillBuffer() {
+        bufferIndex = 0;
+        stream.read(buffer.data(), sCSVReaderIOBuffSize);
+        bufferSize = stream.gcount();
+
+        if (bufferSize == 0)
+            isEOf = true;
+    }
+
+    char get()
+    {
+        if (isEOf || bufferIndex == bufferSize) {
+            isEOf = true;
+            return std::char_traits<char>::eof();
+        }
+        return buffer[bufferIndex];
+    }
+
+    void next()
+    {
+        bufferIndex++;
+        if (bufferIndex == bufferSize) {
+            fillBuffer();
+        }
+    }
+
+    bool eof()
+    {
+        return isEOf;
+    }
+};
+
+struct CSVReaderIOSync
+{
     std::ifstream stream;
 
-    void open(const std::string& filename) {
+    void open(const std::string &filename)
+    {
         stream.open(filename);
 
         if (!stream)
             throw std::domain_error("File not found");
     }
 
-    char get() {
+    char get()
+    {
         return stream.peek();
     }
 
-    void next() {
+    void next()
+    {
         stream.get();
     }
 
-    bool eof() {
+    bool eof()
+    {
         return stream.eof();
     }
 };
 
+template<typename IO>
 struct CSVReader
 {
     std::vector<std::string> header;
     std::vector<std::vector<char>> dataBuffer;
     std::vector<std::string_view> data;
     std::string filename;
-    CSVReaderIOSync io;
+    IO io;
 
     char separator;
 
@@ -53,7 +111,7 @@ struct CSVReader
     void startRead()
     {
         io.open(filename);
-        
+
         std::vector<char> buffer(defaultBufferSize);
         size_t filledSize;
 
@@ -113,7 +171,7 @@ struct CSVReader
         return true;
     }
 
-    void readCell(std::vector<char>& buffer, size_t& size)
+    void readCell(std::vector<char> &buffer, size_t &size)
     {
         size = 0;
         char ch = io.get();
@@ -149,7 +207,7 @@ struct CSVReader
 
                 if (ch == std::char_traits<char>::eof())
                     throw std::domain_error("Espacing in end of file is illegal");
-                
+
                 buffer.at(size++) = ch;
             }
             else if (ch == '"')
