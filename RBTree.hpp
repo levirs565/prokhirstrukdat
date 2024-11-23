@@ -60,11 +60,11 @@ struct RBTree
             {
                 mostClose = current;
 
-                if (isLess(value, current->value))
+                if (isLess(node->value, current->value))
                 {
                     current = current->left;
                 }
-                else if (isLess(current->value, value))
+                else if (isLess(current->value, node->value))
                 {
                     current = current->right;
                 }
@@ -74,7 +74,7 @@ struct RBTree
                 }
             }
 
-            if (isLess(value, mostClose->value))
+            if (isLess(node->value, mostClose->value))
             {
                 mostClose->setLeft(node);
             }
