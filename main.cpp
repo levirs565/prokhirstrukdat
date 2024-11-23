@@ -104,7 +104,7 @@ public:
         int titleIndex = reader.findHeaderIndex("Book-Title");
         
         while (reader.readData()) {
-            tree.insert(Book{reader.data[isbnIndex], reader.data[titleIndex]});
+            tree.insert(Book{std::string{reader.data[isbnIndex]}, std::string{reader.data[titleIndex]}});
         }
 
         timer.end();

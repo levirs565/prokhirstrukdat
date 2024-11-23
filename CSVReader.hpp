@@ -11,10 +11,14 @@
 
 struct CSVReader
 {
-    std::vector<std::string> header, data;
+    std::vector<std::string> header;
+    std::vector<std::vector<char>> dataBuffer;
+    std::vector<std::string_view> data;
     std::string filename;
     std::ifstream stream;
     char separator;
+
+    const size_t defaultBufferSize = 8 * 1024;
 
     CSVReader(const std::string &filename, char separator)
     {
@@ -28,10 +32,14 @@ struct CSVReader
 
         if (!stream)
             throw std::domain_error("File not found");
+        
+        std::vector<char> buffer(defaultBufferSize);
+        size_t filledSize;
 
         while (!stream.eof())
         {
-            header.push_back(readCell());
+            readCell(buffer, filledSize);
+            header.push_back(std::string(buffer.data(), filledSize));
 
             char ch = stream.get();
 
@@ -39,6 +47,7 @@ struct CSVReader
                 break;
         }
 
+        dataBuffer = std::vector<std::vector<char>>(header.size(), std::vector<char>(defaultBufferSize));
         data.resize(header.size());
     }
 
@@ -55,13 +64,15 @@ struct CSVReader
     bool readData()
     {
         size_t i = 0;
+        size_t filledSize;
 
         while (!stream.eof())
         {
-            if (i >= data.size())
+            if (i >= header.size())
                 throw std::domain_error("Data length exceed header length");
 
-            data[i] = readCell();
+            readCell(dataBuffer[i], filledSize);
+            data[i] = std::string_view(dataBuffer[i].data(), filledSize);
             i++;
 
             char ch = stream.get();
@@ -70,7 +81,7 @@ struct CSVReader
                 break;
         }
 
-        if (i == 0 || (i == 1 && data[0] == ""))
+        if (i == 0 || (i == 1 && data[0].size() == 0))
             return false;
 
         if (i < data.size())
@@ -79,20 +90,19 @@ struct CSVReader
         return true;
     }
 
-    std::string readCell()
+    void readCell(std::vector<char>& buffer, size_t& size)
     {
-        std::string result;
-
+        size = 0;
         char ch = stream.get();
 
         if (ch == std::char_traits<char>::eof())
-            return "";
+            return;
 
         bool startWithQuote = ch == '"';
         bool insideQuote = startWithQuote;
 
         if (!insideQuote)
-            result.push_back(ch);
+            buffer.at(size++) = ch;
 
         while (stream.peek() != std::char_traits<char>::eof())
         {
@@ -114,7 +124,7 @@ struct CSVReader
                 if (ch == std::char_traits<char>::eof())
                     throw std::domain_error("Espacing in end of file is illegal");
                 
-                result.push_back(ch);
+                buffer.at(size++) = ch;
             }
             else if (ch == '"')
             {
@@ -124,7 +134,7 @@ struct CSVReader
                 if (!stream.eof() && stream.peek() == '"')
                 {
                     ch = stream.get();
-                    result.push_back(ch);
+                    buffer.at(size++) = ch;
                 }
                 else
                 {
@@ -132,12 +142,10 @@ struct CSVReader
                 }
             }
             else
-                result.push_back(ch);
+                buffer.at(size++) = ch;
         }
 
         if (startWithQuote && insideQuote)
             throw std::domain_error("Quoted field not closed");
-
-        return result;
     }
 };
