@@ -97,17 +97,19 @@ public:
     {
         Timer timer;
         timer.start();
-        CSVReader<CSVReaderIOBuffSync> reader("./data/books.csv", ';');
+        CSVReader<CSVReaderIOBuffAsync> reader("./data/books.csv", ';');
         reader.startRead();
 
         int isbnIndex = reader.findHeaderIndex("ISBN");
         int titleIndex = reader.findHeaderIndex("Book-Title");
         
         while (reader.readData()) {
-            tree.insert(Book{std::string{reader.data[isbnIndex]}, std::string{reader.data[titleIndex]}});
+            // tree.insert(Book{std::string{reader.data[isbnIndex]}, std::string{reader.data[titleIndex]}});
         }
 
         timer.end();
+
+        // std::cout << tree.root->value.title << std::endl;
 
         run_thread_ui([&] () {
             mProgressBar.set_waiting(false);
