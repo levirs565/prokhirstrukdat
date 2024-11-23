@@ -7,105 +7,137 @@
 #include <stdexcept>
 #include <iostream>
 #include <cctype>
+#include <algorithm>
 
-inline std::string ReadCell(std::ifstream &stream)
+struct CSVReader
 {
-    std::string result;
+    std::vector<std::string> header, data;
+    std::string filename;
+    std::ifstream stream;
+    char separator;
 
-    char ch = stream.get();
-
-    if (ch == std::char_traits<char>::eof())
-        return "";
-
-    bool startWithQuote = ch == '"';
-    bool insideQuote = startWithQuote;
-
-    if (!insideQuote)
-        result.push_back(ch);
-
-
-    while (stream.peek() != std::char_traits<char>::eof())
+    CSVReader(const std::string &filename, char separator)
     {
-        if (!insideQuote && (stream.peek() == ',' || stream.peek() == '\n'))
-            break;
-
-        ch = stream.get();
-
-        if (ch == '\r')
-            continue;
-
-        if (startWithQuote && !insideQuote)
-            throw std::domain_error("Illegal character after double quote");
-
-        if (ch == '"')
-        {
-            if (!insideQuote)
-                throw std::domain_error("Field not enclosed with double quoted cannot have double qoute");
-
-            if (!stream.eof() && stream.peek() == '"')
-            {
-                ch = stream.get();
-                result.push_back(ch);
-            }
-            else
-            {
-                insideQuote = false;
-            }
-        }
-        else
-            result.push_back(ch);
+        this->filename = filename;
+        this->separator = separator;
     }
 
-    if (startWithQuote && insideQuote)
-        throw std::domain_error("Quoted field not closed");
-
-    return result;
-}
-
-inline void ReadRow(std::ifstream &stream, std::vector<std::string> &res)
-{
-    while (!stream.eof())
+    void startRead()
     {
-        res.push_back(ReadCell(stream));
+        stream.open(filename);
+
+        if (!stream)
+            throw std::domain_error("File not found");
+
+        while (!stream.eof())
+        {
+            header.push_back(readCell());
+
+            char ch = stream.get();
+
+            if (ch == '\n')
+                break;
+        }
+
+        data.resize(header.size());
+    }
+
+    int findHeaderIndex(const std::string &name)
+    {
+        auto it = std::find(header.begin(), header.end(), name);
+
+        if (it == header.end())
+            return -1;
+
+        return it - header.begin();
+    }
+
+    bool readData()
+    {
+        size_t i = 0;
+
+        while (!stream.eof())
+        {
+            if (i >= data.size())
+                throw std::domain_error("Data length exceed header length");
+
+            data[i] = readCell();
+            i++;
+
+            char ch = stream.get();
+
+            if (ch == '\n')
+                break;
+        }
+
+        if (i == 0 || (i == 1 && data[0] == ""))
+            return false;
+
+        if (i < data.size())
+            throw std::domain_error("Data size below header size " + std::to_string(i));
+
+        return true;
+    }
+
+    std::string readCell()
+    {
+        std::string result;
 
         char ch = stream.get();
 
-        if (ch == '\n')
-            break;
-    }
-}
+        if (ch == std::char_traits<char>::eof())
+            return "";
 
-inline void ReadCSV(
-    const std::string &filename,
-    const std::function<void(std::map<std::string, std::string>)> onLine
-)
-{
-    std::ifstream stream(filename);
+        bool startWithQuote = ch == '"';
+        bool insideQuote = startWithQuote;
 
-    if (!stream)
-        throw std::domain_error("File not found");
+        if (!insideQuote)
+            result.push_back(ch);
 
-    std::vector<std::string> headerCells;
+        while (stream.peek() != std::char_traits<char>::eof())
+        {
+            if (!insideQuote && (stream.peek() == separator || stream.peek() == '\n'))
+                break;
 
-    ReadRow(stream, headerCells);
+            ch = stream.get();
 
-    std::vector<std::string> cells;
-    std::map<std::string, std::string> obj;
+            if (ch == '\r')
+                continue;
 
-    while (!stream.eof())
-    {
-        ReadRow(stream, cells);
-        
-        if (cells.size() != headerCells.size())
-            throw std::domain_error("Row cell count mismatch header cell count");
+            if (startWithQuote && !insideQuote)
+                throw std::domain_error("Illegal character after double quote " + std::string{ch});
 
-        for (size_t i = 0; i < cells.size(); i++) {
-            obj[headerCells[i]] = cells[i];
+            if (ch == '\\')
+            {
+                ch = stream.get();
+
+                if (ch == std::char_traits<char>::eof())
+                    throw std::domain_error("Espacing in end of file is illegal");
+                
+                result.push_back(ch);
+            }
+            else if (ch == '"')
+            {
+                if (!insideQuote)
+                    throw std::domain_error("Field not enclosed with double quoted cannot have double qoute");
+
+                if (!stream.eof() && stream.peek() == '"')
+                {
+                    ch = stream.get();
+                    result.push_back(ch);
+                }
+                else
+                {
+                    insideQuote = false;
+                }
+            }
+            else
+                result.push_back(ch);
         }
 
-        onLine(obj);
+        if (startWithQuote && insideQuote)
+            throw std::domain_error("Quoted field not closed");
 
-        cells.clear();
-        obj.clear();
+        return result;
     }
-}
+};
