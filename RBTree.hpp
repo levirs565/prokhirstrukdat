@@ -41,10 +41,10 @@ struct RBTree
 
     RBTree(K comparer) : isLess(comparer) {}
 
-    void insert(T value)
+    void insert(T&& value)
     {
         NodeType *node = new NodeType();
-        node->value = value;
+        node->value = std::move(value);
 
         if (root == nullptr)
         {
