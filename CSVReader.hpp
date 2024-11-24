@@ -30,7 +30,8 @@ struct CSVReaderIOBuffAsync
     std::mutex mutex;
     std::condition_variable cv;
 
-    ~CSVReaderIOBuffAsync() {
+    ~CSVReaderIOBuffAsync()
+    {
         {
             std::lock_guard lk(mutex);
             terminated = true;
@@ -49,10 +50,11 @@ struct CSVReaderIOBuffAsync
 
             if (!stream)
                 throw std::domain_error("File not found"); 
+            
 
             while (true) {
                 // std::cout << "Wait Action" << std::endl;
-                std::unique_lock lk(mutex);
+                std::unique_lock lk(mutex); 
                 cv.wait(lk, [&]() {
                     return needRead || terminated;
                 });
@@ -60,11 +62,16 @@ struct CSVReaderIOBuffAsync
                 if (terminated) return;
 
                 stream.read(nextBuffer.data(), sCSVReaderIOBuffSize);
-                nextBufferSize = stream.gcount();
+                int readed = stream.gcount();
+                nextBufferSize = readed;
 
                 needRead = false;
                 lk.unlock();
                 cv.notify_one();
+
+                if (readed == 0) {
+                    break;
+                }
             } });
 
         next();
@@ -83,7 +90,7 @@ struct CSVReaderIOBuffAsync
     void next()
     {
         bufferIndex++;
-        if (bufferIndex >= bufferSize)
+        if (bufferIndex >= bufferSize && !isEOf)
         {
             {
                 std::unique_lock lk(mutex);
@@ -97,6 +104,11 @@ struct CSVReaderIOBuffAsync
 
             cv.notify_one();
             bufferIndex = 0;
+
+            if (bufferSize == 0)
+            {
+                isEOf = true;
+            }
         }
     }
 
