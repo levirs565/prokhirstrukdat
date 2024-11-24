@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef UNICODE
+#define UNICODE
+#endif
+
 #include <fstream>
 #include <functional>
 #include <map>
@@ -11,8 +15,78 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <Windows.h>
 
 constexpr size_t sCSVReaderIOBuffSize = 256 * 1024;
+
+struct CSVReaderIOWinFMAP
+{
+    HANDLE hFile, hMap;
+    const char *buffer;
+    size_t bufferIndex = 0;
+
+    void open(const std::string &filename)
+    {
+        hFile = CreateFileA(filename.c_str(), GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+
+        if (!hFile)
+        {
+            throw std::domain_error("Error during CreateFileA. Code: " + std::to_string(GetLastError()));
+        }
+
+        hMap = CreateFileMappingA(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+
+        if (!hMap)
+        {
+            throw std::domain_error("Error during CreateFileMappingA. Code: " + std::to_string(GetLastError()));
+        }
+
+        buffer = reinterpret_cast<const char *>(MapViewOfFile(hMap, FILE_MAP_READ, 0, 0, 0));
+
+        if (!buffer)
+        {
+            throw std::domain_error("Error during MapViewOfFile. Code: " + std::to_string(GetLastError()));
+        }
+    }
+
+    ~CSVReaderIOWinFMAP()
+    {
+        if (buffer)
+        {
+            UnmapViewOfFile(reinterpret_cast<LPCVOID>(buffer));
+        }
+
+        if (hMap)
+        {
+            CloseHandle(hMap);
+        }
+
+        if (hFile)
+        {
+            CloseHandle(hFile);
+        }
+    }
+
+    char get()
+    {
+        if (eof())
+        {
+            return std::char_traits<char>::eof();
+        }
+        return buffer[bufferIndex];
+    }
+
+    void next()
+    {
+        if (!eof())
+            bufferIndex++;
+    }
+
+    bool eof()
+    {
+        return buffer[bufferIndex] == '\0';
+    }
+};
 
 struct CSVReaderIOBuffAsync
 {
