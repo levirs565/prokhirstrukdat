@@ -1,8 +1,11 @@
+#pragma once
+
 #include <algorithm>
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <Windows.h>
+#include <array>
 
 constexpr int spacing = 5;
 
@@ -12,7 +15,7 @@ struct Layouter {
     
     int maxW = 0, maxH = 0;
 
-    Layouter(HWND hwnd) {
+    Layouter(HWND hwnd, int paddingBotom = 0) {
         x = spacing;
         y = spacing;
 
@@ -20,7 +23,7 @@ struct Layouter {
         GetClientRect(hwnd, &rect);
 
         w = rect.right - rect.left;
-        h = rect.bottom - rect.top;
+        h = rect.bottom - rect.top - paddingBotom;
     }
 
     void nextRow() {

@@ -5,6 +5,8 @@
 #include <string>
 #include <algorithm>
 #include <sstream>
+#include <locale>
+#include <codecvt>
 #include "CSVReader.hpp"
 #include "RBTree.hpp"
 #include "Timer.hpp"
@@ -13,6 +15,8 @@
 #include "winlamb/progressbar.h"
 #include "winlamb/button.h"
 #include "winlamb/statusbar.h"
+#include "winlamb/listview.h"
+#include "Layouter.hpp"
 
 int gnCmdShow;
 
@@ -58,6 +62,7 @@ class MainWindow : public wl::window_main
     wl::button mButton;
     wl::statusbar mStatusbar;
     wl::progressbar mProgressBar;
+    wl::listview mListView;
 
 public:
     MainWindow()
@@ -69,10 +74,26 @@ public:
 
         on_message(WM_CREATE, [&](wl::params) -> LRESULT
                    {
-                    mButton.create(this, 0, L"Test", {0, 0});
+                    Layouter layouter(hwnd(), 25);
+
+                    POINT pos = layouter.pos();
+                    SIZE size = layouter.button();
+                    
+                    mButton.create(this, 0, L"Test", pos, size);
+
+                    layouter.nextRow();
+
+                    pos = layouter.pos();
+                    size = layouter.fill();
+
+                    mListView.create(this, 0, pos, size, LVS_REPORT | LVS_ALIGNLEFT | WS_VISIBLE | WS_CHILD, WS_EX_CLIENTEDGE);
+                    mListView.columns.add(L"ISBN", 100);
+                    mListView.columns.add(L"Title", 200);
+
                     mStatusbar.create(this);
                     mProgressBar.create(mStatusbar.hwnd(), 0, L"", {9, 2}, {100, 19});
                     mStatusbar.add_fixed_part(118);
+                    mStatusbar.add_resizable_part(1);
                     mStatusbar.add_resizable_part(1);
 
                     beginLoadData();
@@ -93,49 +114,57 @@ public:
         run_thread_detached(std::bind(&MainWindow::loadData, this));
     }
 
+    void showItems()
+    {
+        mListView.items.remove_all();
+
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+
+        tree.inorder(tree.root, [&](auto node)
+                     { mListView.items.add(converter.from_bytes(node->value.isbn))
+                           .set_text(converter.from_bytes(node->value.title), 1); });
+    }
+
     void loadData()
     {
+        mStatusbar.set_text(L"Memuat data", 1);
         Timer timer;
         timer.start();
-        CSVReader<CSVReaderIOBuffAsync> reader("./data/books.csv", ';');
-        reader.startRead();
+        {
+            CSVReader<CSVReaderIOWinFMAP> reader("./data/books.csv", ';');
+            reader.startRead();
 
-        int isbnIndex = reader.findHeaderIndex("ISBN");
-        int titleIndex = reader.findHeaderIndex("Book-Title");
-        
-        while (reader.readData()) {
-            // tree.insert(Book{std::string{reader.data[isbnIndex]}, std::string{reader.data[titleIndex]}});
+            int isbnIndex = reader.findHeaderIndex("ISBN");
+            int titleIndex = reader.findHeaderIndex("Book-Title");
+
+            while (reader.readData())
+            {
+                tree.insert(std::move(Book{
+                    std::move(std::string{reader.data[isbnIndex]}),
+                    std::move(std::string{reader.data[titleIndex]})}));
+            }
         }
 
         timer.end();
 
-        // std::cout << tree.root->value.title << std::endl;
+        std::wstringstream stream;
+        stream << L"Data dimuat dalam " << timer.durationMs() << L"ms";
+        mStatusbar.set_text(stream.str().c_str(), 1);
 
-        run_thread_ui([&] () {
-            mProgressBar.set_waiting(false);
-            std::wstringstream stream;
-            stream << L"Data dimuat dalam " << timer.durationMs() << L"ms"; 
-            mStatusbar.set_text(stream.str().c_str(), 1);
-        });
+        mStatusbar.set_text(L"Menampilkan data", 2);
+
+        timer.start();
+        showItems();
+        std::cout << "Selesai" << std::endl;
+        mProgressBar.set_waiting(false);
+        timer.end();
+
+        stream = std::wstringstream();
+        stream << L"Data ditampilkan dalam " << timer.durationMs() << L"ms";
+
+        mStatusbar.set_text(stream.str().c_str(), 2);
     }
 };
-
-// int main()
-// {
-//     ;
-
-//     std::string last = "";
-//     tree.findBetween(Book{"", "A"}, Book{"", "B"}, [&](auto node)
-//                      {
-//                         assert(last <= node->value.title);
-//                         std::cout << node->value.title << std::endl;
-//                         last = node->value.title; });
-
-//     std::cout << tree.maxLevel(tree.root, 0) << std::endl;
-
-//     int a;
-//     std::cin >> a;
-// }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)
 {
