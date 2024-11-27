@@ -17,6 +17,8 @@
 #include "winlamb/statusbar.h"
 #include "winlamb/listview.h"
 #include "Layouter.hpp"
+#include "winlamb/textbox.h"
+#include "winlamb/label.h"
 
 int gnCmdShow;
 
@@ -33,32 +35,94 @@ bool BookTitleCompare(const Book &a, const Book &b)
 
 RBTree<Book, decltype(&BookTitleCompare)> tree(BookTitleCompare);
 
-class LoadingWindow : public wl::window_control
+class FindBetweenWindow : public wl::window_control
 {
-    wl::progressbar mProgressBar;
+
+    wl::textbox mFromTextBox;
+    wl::textbox mToTextBox;
+    wl::button mFind;
+    wl::label mFromLabel;
+    wl::label mToLabel;
+    wl::listview mListView;
 
 public:
     bool isModal = true;
 
-    LoadingWindow() : wl::window_control()
+    FindBetweenWindow() : wl::window_control()
     {
-        setup.wndClassEx.lpszClassName = L"LoadingDialog";
-        setup.exStyle = WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_TOPMOST | WS_EX_NOPARENTNOTIFY;
+        setup.wndClassEx.lpszClassName = L"FindBetweenWindow";
+        // setup.exStyle = WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE | WS_EX_TOPMOST | WS_EX_NOPARENTNOTIFY;
         setup.style = WS_VISIBLE | WS_SYSMENU | WS_CAPTION;
         setup.title = L"Loading";
 
         on_message(WM_CREATE, [&](wl::params) -> LRESULT
                    {
-            mProgressBar.create(this, 4002, L"Loading", {100, 100}, {200, 25});
-             
-            mProgressBar.set_waiting(true);
+                    Layouter layouter (hwnd());
+
+                    POINT pos = layouter.pos(5);
+                    SIZE size = layouter.component(50,21);
+
+                    mFromLabel.create(this, 0, L"Dari :", pos, size);
+                    layouter.nextColumn();
+
+                    pos = layouter.pos(10);
+                    size = layouter.edit();
+
+                    mFromTextBox.create(this, 0, wl::textbox::type::NORMAL, pos, size.cx, size.cy);
+
+                    layouter.nextColumn();
+
+                    pos = layouter.pos(25);
+                    size = layouter.component(55,21);
+
+                    mToLabel.create(this, 0, L"Hingga :", pos, size);
+                    layouter.nextColumn();
+                    
+                    pos = layouter.pos(10);
+                    size = layouter.edit();
+
+                    mToTextBox.create(this,0 , wl::textbox::type::NORMAL, pos, size.cx, size.cy);
+                    layouter.nextColumn();
+
+                    pos = layouter.pos(10);
+                    size = layouter.edit();
+
+                    mFind.create(this, 4002, L"Cari", pos, size);   
+
+                    layouter.nextRow();
+                    pos = layouter.pos();
+                    size = layouter.fill();
+
+                    mListView.create(this, 0, pos, size, LVS_REPORT | LVS_ALIGNLEFT | WS_VISIBLE | WS_CHILD, WS_EX_CLIENTEDGE);
+                    mListView.columns.add(L"ISBN", 100);
+                    mListView.columns.add(L"Title", 200);
             return true; });
+
+        on_command(4002, [&](wl::params p) -> LRESULT
+                   {
+                    run_thread_detached(std::bind(& FindBetweenWindow::FindBetween,this));
+                    return true; });
+    }
+
+    void FindBetween(){
+        mListView.items.remove_all();
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+
+        std::string from = converter.to_bytes(mFromTextBox.get_text());
+        std::string to = converter.to_bytes(mToTextBox.get_text());
+
+                    size_t current = 0;
+                    tree.findBetween(Book{".", from}, Book{"?", to}, [&](auto node)
+                                { 
+                        current++;
+                        mListView.items.add(converter.from_bytes(node->value.isbn))
+                            .set_text(converter.from_bytes(node->value.title), 1); });
     }
 };
 
 class MainWindow : public wl::window_main
 {
-    LoadingWindow mLoadingDialog;
+    FindBetweenWindow mFindBetweenWindow;
     wl::button mButton;
     wl::statusbar mStatusbar;
     wl::progressbar mProgressBar;
@@ -74,12 +138,13 @@ public:
 
         on_message(WM_CREATE, [&](wl::params) -> LRESULT
                    {
+                    mFindBetweenWindow.create(this, 0, {0,0}, {400,400}) ;
                     Layouter layouter(hwnd(), 25);
 
                     POINT pos = layouter.pos();
                     SIZE size = layouter.button();
                     
-                    mButton.create(this, 0, L"Test", pos, size);
+                    mButton.create(this, 4001, L"Test", pos, size);
 
                     layouter.nextRow();
 
@@ -104,6 +169,9 @@ public:
                    {
             mStatusbar.adjust(p);
             return true; });
+
+        on_command(4001, [&](wl::params p) -> LRESULT
+                   { return true; });
     }
 
     void beginLoadData()
@@ -121,7 +189,7 @@ public:
         Timer timer;
         timer.start();
         {
-            CSVReader<CSVReaderIOWinFMAP> reader("./data/books.csv", ';');
+            CSVReader<CSVReaderIOBuffSync> reader("./data/books.csv", ';');
             reader.startRead();
 
             int isbnIndex = reader.findHeaderIndex("ISBN");
@@ -146,7 +214,7 @@ public:
 
         mProgressBar.set_waiting(false);
         timer.start();
-        
+
         mListView.items.remove_all();
 
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
@@ -157,8 +225,7 @@ public:
             current++;
             mProgressBar.set_pos((double) current * 100.0 / (double) count);
             mListView.items.add(converter.from_bytes(node->value.isbn))
-                .set_text(converter.from_bytes(node->value.title), 1); 
-        });
+                .set_text(converter.from_bytes(node->value.title), 1); });
 
         timer.end();
 
