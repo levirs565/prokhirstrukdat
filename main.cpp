@@ -114,19 +114,9 @@ public:
         run_thread_detached(std::bind(&MainWindow::loadData, this));
     }
 
-    void showItems()
-    {
-        mListView.items.remove_all();
-
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
-
-        tree.inorder(tree.root, [&](auto node)
-                     { mListView.items.add(converter.from_bytes(node->value.isbn))
-                           .set_text(converter.from_bytes(node->value.title), 1); });
-    }
-
     void loadData()
     {
+        size_t count = 0;
         mStatusbar.set_text(L"Memuat data", 1);
         Timer timer;
         timer.start();
@@ -139,6 +129,7 @@ public:
 
             while (reader.readData())
             {
+                count++;
                 tree.insert(std::move(Book{
                     std::move(std::string{reader.data[isbnIndex]}),
                     std::move(std::string{reader.data[titleIndex]})}));
@@ -153,10 +144,22 @@ public:
 
         mStatusbar.set_text(L"Menampilkan data", 2);
 
-        timer.start();
-        showItems();
-        std::cout << "Selesai" << std::endl;
         mProgressBar.set_waiting(false);
+        timer.start();
+        
+        mListView.items.remove_all();
+
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+
+        size_t current = 0;
+        tree.inorder(tree.root, [&](auto node)
+                     { 
+            current++;
+            mProgressBar.set_pos((double) current * 100.0 / (double) count);
+            mListView.items.add(converter.from_bytes(node->value.isbn))
+                .set_text(converter.from_bytes(node->value.title), 1); 
+        });
+
         timer.end();
 
         stream = std::wstringstream();
