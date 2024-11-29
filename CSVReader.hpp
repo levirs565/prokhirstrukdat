@@ -14,7 +14,8 @@
 #include <algorithm>
 // #include <thread>
 // #include <mutex>
-#include <condition_variable>
+// #include <condition_variable>
+#include "Utils.hpp"
 #include <Windows.h>
 
 constexpr size_t sCSVReaderIOBuffSize = 256 * 1024;
@@ -278,7 +279,7 @@ struct CSVReader
 {
     std::vector<std::string> header;
     std::vector<std::vector<char>> dataBuffer;
-    std::vector<std::string_view> data;
+    std::vector<Utils::StringView> data;
     std::string filename;
     IO io;
 
@@ -336,7 +337,7 @@ struct CSVReader
                 throw std::domain_error("Data length exceed header length");
 
             readCell(dataBuffer[i], filledSize);
-            data[i] = std::string_view(dataBuffer[i].data(), filledSize);
+            data[i] = Utils::StringView(dataBuffer[i].data(), filledSize);
             i++;
 
             char ch = io.get();
@@ -346,7 +347,7 @@ struct CSVReader
                 break;
         }
 
-        if (i == 0 || (i == 1 && data[0].size() == 0))
+        if (i == 0 || (i == 1 && data[0].size == 0))
             return false;
 
         if (i < data.size())
