@@ -1,10 +1,6 @@
 #pragma once
 
-#ifndef UNICODE
-#define UNICODE
-#endif
-
-#include <Windows.h>
+#include "Winapi.hpp"
 #include <CommCtrl.h>
 #include <string>
 #include <vector>
@@ -18,14 +14,6 @@ namespace UI
     HINSTANCE _hInstance;
     int _nCmdShow;
     UINT_PTR _nextControlId = 4001;
-
-    struct WinapiError : std::runtime_error
-    {
-
-        WinapiError(std::string what) : std::runtime_error(what + ". Error code : " + std::to_string(GetLastError()))
-        {
-        }
-    };
 
     struct GDI
     {
@@ -53,7 +41,7 @@ namespace UI
         HINSTANCE inst = LoadLibraryA(library);
 
         if (inst == 0)
-            throw WinapiError(std::string("Cannot LoadLibraryA ") + library);
+            throw Winapi::Error(std::string("Cannot LoadLibraryA ") + library);
 
         return inst;
     }
@@ -64,7 +52,7 @@ namespace UI
         T func = (T)GetProcAddress(hInst, name);
 
         if (func == 0)
-            throw WinapiError(std::string("Cannot GetProcAddress ") + name);
+            throw Winapi::Error(std::string("Cannot GetProcAddress ") + name);
 
         return func;
     }
@@ -92,7 +80,7 @@ namespace UI
 
         if (hDefaultFont == 0)
         {
-            throw WinapiError("Error loading font");
+            throw Winapi::Error("Error loading font");
         }
     }
 
@@ -116,11 +104,11 @@ namespace UI
         HANDLE hactx = CreateActCtxW(&actx);
 
         if (hactx == INVALID_HANDLE_VALUE)
-            throw WinapiError("CreateActCtxW failed");
+            throw Winapi::Error("CreateActCtxW failed");
 
         ULONG_PTR actxCookie = 0;
         if (!ActivateActCtx(hactx, &actxCookie))
-            throw WinapiError("ActivateActCtx");
+            throw Winapi::Error("ActivateActCtx");
     }
 
     void Setup(HINSTANCE instance, int nCmdShow)
@@ -759,7 +747,7 @@ namespace UI
         {
             if (!UnregisterClassW(reinterpret_cast<LPCWSTR>(static_cast<ULONG_PTR>(static_cast<WORD>(data._atom))), _hInstance))
             {
-                throw WinapiError("Error at UnregisterClassW");
+                throw Winapi::Error("Error at UnregisterClassW");
             }
         }
 
@@ -776,7 +764,7 @@ namespace UI
 
         if (data._atom == 0)
         {
-            throw WinapiError("Error at RegisterClassExW");
+            throw Winapi::Error("Error at RegisterClassExW");
         }
 
         HWND hwnd = CreateWindowExW(
@@ -792,7 +780,7 @@ namespace UI
 
         if (hwnd == 0)
         {
-            throw WinapiError("Error at CreateWindowExW");
+            throw Winapi::Error("Error at CreateWindowExW");
         }
 
         return hwnd;
