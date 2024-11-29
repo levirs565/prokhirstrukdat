@@ -12,8 +12,8 @@
 #include <iostream>
 #include <cctype>
 #include <algorithm>
-#include <thread>
-#include <mutex>
+// #include <thread>
+// #include <mutex>
 #include <condition_variable>
 #include <Windows.h>
 
@@ -88,109 +88,109 @@ struct CSVReaderIOWinFMAP
     }
 };
 
-struct CSVReaderIOBuffAsync
-{
-    size_t bufferIndex = 0;
-    bool isEOf = false;
-    size_t bufferSize = 0;
-    std::vector<char> buffer = std::vector<char>(sCSVReaderIOBuffSize);
+// struct CSVReaderIOBuffAsync
+// {
+//     size_t bufferIndex = 0;
+//     bool isEOf = false;
+//     size_t bufferSize = 0;
+//     std::vector<char> buffer = std::vector<char>(sCSVReaderIOBuffSize);
 
-    size_t nextBufferSize = 0;
-    std::vector<char> nextBuffer = std::vector<char>(sCSVReaderIOBuffSize);
+//     size_t nextBufferSize = 0;
+//     std::vector<char> nextBuffer = std::vector<char>(sCSVReaderIOBuffSize);
 
-    std::thread worker;
-    bool needRead = true;
-    bool terminated = false;
-    std::mutex mutex;
-    std::condition_variable cv;
+//     std::thread worker;
+//     bool needRead = true;
+//     bool terminated = false;
+//     std::mutex mutex;
+//     std::condition_variable cv;
 
-    ~CSVReaderIOBuffAsync()
-    {
-        {
-            std::lock_guard lk(mutex);
-            terminated = true;
-            cv.notify_one();
-        }
-        worker.join();
-    }
+//     ~CSVReaderIOBuffAsync()
+//     {
+//         {
+//             std::lock_guard lk(mutex);
+//             terminated = true;
+//             cv.notify_one();
+//         }
+//         worker.join();
+//     }
 
-    void open(const std::string &filename)
-    {
-        worker = std::thread([&]()
-                             {
-            std::ifstream stream;
+//     void open(const std::string &filename)
+//     {
+//         worker = std::thread([&]()
+//                              {
+//             std::ifstream stream;
 
-            stream.open(filename);
+//             stream.open(filename);
 
-            if (!stream)
-                throw std::domain_error("File not found"); 
+//             if (!stream)
+//                 throw std::domain_error("File not found"); 
             
 
-            while (true) {
-                // std::cout << "Wait Action" << std::endl;
-                std::unique_lock lk(mutex); 
-                cv.wait(lk, [&]() {
-                    return needRead || terminated;
-                });
+//             while (true) {
+//                 // std::cout << "Wait Action" << std::endl;
+//                 std::unique_lock lk(mutex); 
+//                 cv.wait(lk, [&]() {
+//                     return needRead || terminated;
+//                 });
 
-                if (terminated) return;
+//                 if (terminated) return;
 
-                stream.read(nextBuffer.data(), sCSVReaderIOBuffSize);
-                int readed = stream.gcount();
-                nextBufferSize = readed;
+//                 stream.read(nextBuffer.data(), sCSVReaderIOBuffSize);
+//                 int readed = stream.gcount();
+//                 nextBufferSize = readed;
 
-                needRead = false;
-                lk.unlock();
-                cv.notify_one();
+//                 needRead = false;
+//                 lk.unlock();
+//                 cv.notify_one();
 
-                if (readed == 0) {
-                    break;
-                }
-            } });
+//                 if (readed == 0) {
+//                     break;
+//                 }
+//             } });
 
-        next();
-    }
+//         next();
+//     }
 
-    char get()
-    {
-        if (isEOf || bufferIndex == bufferSize)
-        {
-            isEOf = true;
-            return std::char_traits<char>::eof();
-        }
-        return buffer[bufferIndex];
-    }
+//     char get()
+//     {
+//         if (isEOf || bufferIndex == bufferSize)
+//         {
+//             isEOf = true;
+//             return std::char_traits<char>::eof();
+//         }
+//         return buffer[bufferIndex];
+//     }
 
-    void next()
-    {
-        bufferIndex++;
-        if (bufferIndex >= bufferSize && !isEOf)
-        {
-            {
-                std::unique_lock lk(mutex);
-                cv.wait(lk, [&]()
-                        { return !needRead; });
+//     void next()
+//     {
+//         bufferIndex++;
+//         if (bufferIndex >= bufferSize && !isEOf)
+//         {
+//             {
+//                 std::unique_lock lk(mutex);
+//                 cv.wait(lk, [&]()
+//                         { return !needRead; });
 
-                std::swap(nextBuffer, buffer);
-                std::swap(nextBufferSize, bufferSize);
-                needRead = true;
-            }
+//                 std::swap(nextBuffer, buffer);
+//                 std::swap(nextBufferSize, bufferSize);
+//                 needRead = true;
+//             }
 
-            cv.notify_one();
-            bufferIndex = 0;
+//             cv.notify_one();
+//             bufferIndex = 0;
 
-            if (bufferSize == 0)
-            {
-                isEOf = true;
-            }
-        }
-    }
+//             if (bufferSize == 0)
+//             {
+//                 isEOf = true;
+//             }
+//         }
+//     }
 
-    bool eof()
-    {
-        return isEOf;
-    }
-};
+//     bool eof()
+//     {
+//         return isEOf;
+//     }
+// };
 
 struct CSVReaderIOBuffSync
 {

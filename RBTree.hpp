@@ -37,6 +37,7 @@ struct RBTree
 {
     using NodeType = RBNode<T>;
     NodeType *root = nullptr;
+    size_t count = 0;
     K isLess;
 
     RBTree(K comparer) : isLess(comparer) {}
@@ -83,6 +84,7 @@ struct RBTree
                 mostClose->setRight(node);
             }
 
+            count++;
             insertFixUp(node);
         }
     }
