@@ -39,7 +39,7 @@ namespace TabFindBooksRange
 
         {
             timer.start();
-            tree.findBetween(Book{L".", fromTextBox.getText()}, {L":", toTextBox.getText()}, [&](auto node)
+            tree.findBetween(Book{L".", fromTextBox.getText()}, {L":", toTextBox.getText()}, [&](RBNode<Book>* node)
                              {
             size_t index = listView.InsertRow(node->value.isbn);
             listView.SetText(index, 1, node->value.title); });
@@ -123,7 +123,7 @@ namespace TabAllBooks
         {
             timer.start();
             size_t current = 0;
-            tree.inorder(tree.root, [&](auto node)
+            tree.inorder(tree.root, [&](RBNode<Book>* node)
                          {
             size_t index = listView.InsertRow(node->value.isbn);
             listView.SetText(index, 1, node->value.title); 
