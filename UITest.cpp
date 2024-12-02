@@ -9,9 +9,11 @@ struct
     UI::ComboBox combo;
 } secondWindowTab2;
 
-LRESULT SedondWindowTab2ButtonClick(UI::CallbackParam param) {
+LRESULT SedondWindowTab2ButtonClick(UI::CallbackParam param)
+{
     std::cout << secondWindowTab2.combo.GetSelectedIndex() << std::endl;
-    if (secondWindowTab2.combo.GetSelectedIndex() != -1) {
+    if (secondWindowTab2.combo.GetSelectedIndex() != -1)
+    {
         std::wcout << secondWindowTab2.combo.GetSelectedText() << std::endl;
     }
     return 0;
@@ -19,13 +21,13 @@ LRESULT SedondWindowTab2ButtonClick(UI::CallbackParam param) {
 
 LRESULT SecondWindowTab2OnCreate(UI::CallbackParam param)
 {
-    secondWindowTab2.window.controls = {
-        {&secondWindowTab2.button},
-        {&secondWindowTab2.combo}};
+    secondWindowTab2.window.controlsLayout = {
+        {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &secondWindowTab2.button)},
+        {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &secondWindowTab2.combo)}};
     secondWindowTab2.button.commandListener = SedondWindowTab2ButtonClick;
 
     UI::LayoutControls(&secondWindowTab2.window, true);
-    
+
     secondWindowTab2.combo.AddItem(L"Satu");
     secondWindowTab2.combo.AddItem(L"Dua");
     secondWindowTab2.combo.SetSelectedIndex(0);
@@ -41,11 +43,8 @@ struct
 
 LRESULT SecondWindowTab1OnCreate(UI::CallbackParam param)
 {
-    secondWindowTab1.button.w = -1;
-    secondWindowTab1.button.h = -1;
-
-    secondWindowTab1.window.controls = {
-        {&secondWindowTab1.button}};
+    secondWindowTab1.window.controlsLayout = {
+        {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &secondWindowTab1.button)}};
     UI::LayoutControls(&secondWindowTab1.window, true);
     return 0;
 }
@@ -58,11 +57,8 @@ struct
 
 LRESULT SecondWindowOnCreate(UI::CallbackParam param)
 {
-    secondWindow.tabs.w = -1;
-    secondWindow.tabs.h = -1;
-
-    secondWindow.window.controls = {
-        {&secondWindow.tabs}};
+    secondWindow.window.controlsLayout = {
+        {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &secondWindow.tabs)}};
     UI::LayoutControls(&secondWindow.window, true);
 
     secondWindowTab1.window.title = L"SecondWindowPage1";
@@ -138,7 +134,6 @@ LRESULT OnMainWindowCreate(UI::CallbackParam param)
     mainWindow.button3.commandListener = OnMainWindowButton3Command;
 
     mainWindow.button4.text = L"Button 4";
-    mainWindow.button4.w = -1;
     mainWindow.button4.commandListener = OnMainWindowButton4Command;
 
     mainWindow.fromLabel.text = L"Dari: ";
@@ -147,19 +142,17 @@ LRESULT OnMainWindowCreate(UI::CallbackParam param)
     mainWindow.toTextBox._dwStyle |= WS_BORDER;
 
     mainWindow.listView._dwStyle |= LVS_REPORT | WS_BORDER;
-    mainWindow.listView.w = -1;
-    mainWindow.listView.h = -1;
 
-    mainWindow.window.controls = {
-        {&mainWindow.button1,
-         &mainWindow.button2},
-        {&mainWindow.fromLabel,
-         &mainWindow.fromTextBox,
-         &mainWindow.toLabel,
-         &mainWindow.toTextBox,
-         &mainWindow.button3},
-        {&mainWindow.button4},
-        {&mainWindow.listView}};
+    mainWindow.window.controlsLayout = {
+        {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &mainWindow.button1),
+         UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &mainWindow.button2)},
+        {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &mainWindow.fromLabel),
+         UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &mainWindow.fromTextBox),
+         UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &mainWindow.toLabel),
+         UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &mainWindow.toTextBox),
+         UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &mainWindow.button3)},
+        {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &mainWindow.button4)},
+        {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &mainWindow.listView)}};
     mainWindow.window.layouter.paddingBottom = 25;
     UI::LayoutControls(&mainWindow.window, true);
 
