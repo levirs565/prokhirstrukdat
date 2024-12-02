@@ -12,24 +12,6 @@ struct RBNode
     RBNode<T> *left = nullptr, *right = nullptr, *parent = nullptr;
     bool isRed = true;
     T value;
-
-    void setLeft(RBNode *child)
-    {
-        left = child;
-        if (child != nullptr)
-        {
-            child->parent = this;
-        }
-    }
-
-    void setRight(RBNode *child)
-    {
-        right = child;
-        if (child != nullptr)
-        {
-            child->parent = this;
-        }
-    }
 };
 
 template <typename T, typename K>
@@ -39,35 +21,46 @@ struct RBTree
     NodeType *root = nullptr;
     size_t count = 0;
     K isLess;
+    NodeType *nil;
 
-    RBTree(K comparer) : isLess(comparer) {}
-
-    void insert(T&& value)
+    RBTree(K comparer) : isLess(comparer)
     {
-        NodeType *node = new NodeType();
-        node->value = std::move(value);
+        nil = new NodeType();
+        nil->left = nullptr;
+        nil->right = nullptr;
+        nil->parent = nullptr;
+        nil->isRed = false;
+        root = nil;
+    }
 
-        if (root == nullptr)
+    void insert(T &&value)
+    {
+        NodeType *z = new NodeType();
+        z->left = nil;
+        z->right = nil;
+        z->value = std::move(value);
+
+        if (root == nil)
         {
-            root = node;
+            root = z;
             root->isRed = false;
         }
         else
         {
-            NodeType *current = root;
-            NodeType *mostClose = nullptr;
+            NodeType *x = root;
+            NodeType *y = nullptr;
 
-            while (current != nullptr)
+            while (x != nil)
             {
-                mostClose = current;
+                y = x;
 
-                if (isLess(node->value, current->value))
+                if (isLess(z->value, x->value))
                 {
-                    current = current->left;
+                    x = x->left;
                 }
-                else if (isLess(current->value, node->value))
+                else if (isLess(x->value, z->value))
                 {
-                    current = current->right;
+                    x = x->right;
                 }
                 else
                 {
@@ -75,18 +68,193 @@ struct RBTree
                 }
             }
 
-            if (isLess(node->value, mostClose->value))
+            z->parent = y;
+            if (isLess(z->value, y->value))
             {
-                mostClose->setLeft(node);
+                y->left = z;
             }
             else
             {
-                mostClose->setRight(node);
+                y->right = z;
             }
 
             count++;
-            insertFixUp(node);
+            insertFixUp(z);
         }
+    }
+
+    NodeType *findNode(const T &value)
+    {
+        NodeType *current = root;
+
+        while (current != nil && current->value != value)
+        {
+            if (isLess(value, current->value))
+            {
+                current = current->left;
+            }
+            else
+            {
+                current = current->right;
+            }
+        }
+
+        return current;
+    }
+
+    void transplant(NodeType *u, NodeType *v)
+    {
+        if (u->parent == nullptr)
+        {
+            root = v;
+        }
+        else if (u == u->parent->left)
+        {
+            u->parent->left = v;
+        }
+        else
+        {
+            u->parent->right = v;
+        }
+        v->parent = u->parent;
+    }
+
+    NodeType *minimum(NodeType *x)
+    {
+        while (x->left != nil)
+            x = x->left;
+        return x;
+    }
+
+    bool remove(const T &value)
+    {
+        NodeType *node = findNode(value);
+
+        if (node == nil)
+        {
+            return false;
+        }
+
+        removeNode(node);
+        return true;
+    }
+
+    void removeNode(NodeType *z)
+    {
+        NodeType *y = z;
+        bool yOrigRed = y->isRed;
+
+        NodeType *x = nullptr;
+        if (z->left == nil)
+        {
+            x = z->right;
+            transplant(z, z->right);
+        }
+        else if (z->right == nil)
+        {
+            x = z->left;
+            transplant(z, z->left);
+        }
+        else
+        {
+            y = minimum(z->right);
+            yOrigRed = y->isRed;
+            x = y->right;
+
+            if (y->parent == z)
+                x->parent = y;
+            else
+            {
+                transplant(y, y->right);
+                y->right = z->right;
+                y->right->parent = y;
+            }
+
+            transplant(z, y);
+            y->left = z->left;
+            y->left->parent = y;
+            y->isRed = z->isRed;
+        }
+
+        delete z;
+        if (!yOrigRed)
+            removeFixUp(x);
+    }
+
+    void removeFixUp(NodeType *x)
+    {
+        while (x != root && !x->isRed)
+        {
+            if (x == x->parent->left)
+            {
+                NodeType *w = x->parent->right;
+
+                if (w->isRed)
+                {
+                    w->isRed = false;
+                    x->parent->isRed = true;
+                    rotateLeft(x->parent);
+                    w = x->parent->right;
+                }
+                if (!w->left->isRed && !w->right->isRed)
+                {
+                    w->isRed = true;
+                    x = x->parent;
+                }
+                else
+                {
+                    if (!w->right->isRed)
+                    {
+                        w->left->isRed = false;
+                        w->isRed = true;
+                        rotateRight(w);
+                        w = x->parent->right;
+                    }
+
+                    w->isRed = x->parent->isRed;
+                    x->parent->isRed = false;
+                    w->right->isRed = false;
+                    rotateLeft(x->parent);
+                    x = root;
+                }
+            }
+            else
+            {
+                NodeType *w = x->parent->left;
+
+                if (w->isRed)
+                {
+                    w->isRed = false;
+                    x->parent->isRed = true;
+                    rotateRight(x->parent);
+                    w = x->parent->left;
+                }
+
+                if (!w->right->isRed && !w->left->isRed)
+                {
+                    w->isRed = true;
+                    x = x->parent;
+                }
+                else
+                {
+                    if (!w->left->isRed)
+                    {
+                        w->right->isRed = false;
+                        w->isRed = true;
+                        rotateLeft(w);
+                        w = x->parent->left;
+                    }
+
+                    w->isRed = x->parent->isRed;
+                    x->parent->isRed = false;
+                    w->left->isRed = false;
+                    rotateRight(x->parent);
+                    x = root;
+                }
+            }
+        }
+
+        x->isRed = false;
     }
 
     void internalFindBetween(
@@ -129,7 +297,7 @@ struct RBTree
 
     void inorder(NodeType *node, const std::function<void(NodeType *)> &visit)
     {
-        if (node == nullptr)
+        if (node == nil)
         {
             return;
         }
@@ -140,7 +308,7 @@ struct RBTree
 
     int maxLevel(NodeType *node, int current)
     {
-        if (node == nullptr)
+        if (node == nil)
             return current;
 
         return std::max(maxLevel(node->left, current + 1), maxLevel(node->right, current + 1));
@@ -163,24 +331,57 @@ struct RBTree
         }
     }
 
-    void rotateRight(NodeType *node)
+    void rotateRight(NodeType *x)
     {
-        NodeType *other = node->left;
-        NodeType *newLeft = other->right;
+        NodeType *y = x->left;
+        x->left = y->right;
 
-        swapParent(node, other);
-        other->setRight(node);
-        node->setLeft(newLeft);
+        if (y->right != nil)
+            y->right->parent = x;
+
+        y->parent = x->parent;
+
+        if (x->parent == nullptr)
+        {
+            root = y;
+        }
+        else if (x == x->parent->right)
+        {
+            x->parent->right = y;
+        }
+        else
+        {
+            x->parent->left = y;
+        }
+
+        y->right = x;
+        x->parent = y;
     }
 
-    void rotateLeft(NodeType *node)
+    void rotateLeft(NodeType *x)
     {
-        NodeType *other = node->right;
-        NodeType *newRight = other->left;
+        NodeType *y = x->right;
+        x->right = y->left;
 
-        swapParent(node, other);
-        other->setLeft(node);
-        node->setRight(newRight);
+        if (y->left != nil)
+            y->left->parent = x;
+
+        y->parent = x->parent;
+        if (x->parent == nullptr)
+        {
+            root = y;
+        }
+        else if (x == x->parent->left)
+        {
+            x->parent->left = y;
+        }
+        else
+        {
+            x->parent->right = y;
+        }
+
+        y->left = x;
+        x->parent = y;
     }
 
     void insertFixUp(NodeType *node)
@@ -205,33 +406,30 @@ struct RBTree
                 node->parent->parent->isRed = true;
                 node = node->parent->parent;
             }
-            else
+            else if (node->parent == node->parent->parent->right)
             {
-                if (node->parent == node->parent->parent->right)
+                if (node == node->parent->left)
                 {
-                    if (node == node->parent->left)
-                    {
-                        node = node->parent;
-                        rotateRight(node);
-                    }
-
-                    node->parent->isRed = false;
-                    node->parent->parent->isRed = true;
-
-                    rotateLeft(node->parent->parent);
+                    node = node->parent;
+                    rotateRight(node);
                 }
-                else if (node->parent == node->parent->parent->left)
+
+                node->parent->isRed = false;
+                node->parent->parent->isRed = true;
+
+                rotateLeft(node->parent->parent);
+            }
+            else if (node->parent == node->parent->parent->left)
+            {
+                if (node == node->parent->right)
                 {
-                    if (node == node->parent->right)
-                    {
-                        node = node->parent;
-                        rotateLeft(node);
-                    }
-                    node->parent->isRed = false;
-                    node->parent->parent->isRed = true;
-
-                    rotateRight(node->parent->parent);
+                    node = node->parent;
+                    rotateLeft(node);
                 }
+                node->parent->isRed = false;
+                node->parent->parent->isRed = true;
+
+                rotateRight(node->parent->parent);
             }
         }
 
