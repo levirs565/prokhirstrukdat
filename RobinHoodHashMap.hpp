@@ -1,6 +1,5 @@
 #pragma once
 
-#include <optional>
 #include <iostream>
 
 /*
@@ -109,7 +108,7 @@ struct RobinHoodHashMap
      * 9. Ganti nilai i menjadi (i + 1) % ukuran bucket
      * 10. Ulangi dari tahap ke 4
      */
-    std::optional<V> get(const K& key)
+    V* get(const K& key)
     {
         const uint64_t hash = computeHash(key);
 
@@ -123,11 +122,11 @@ struct RobinHoodHashMap
             bucket = &buckets[i];
 
             if (!bucket->filled || currentPsl > bucket->psl)
-                return std::nullopt;
+                return nullptr;
 
             if (bucket->hash == hash && bucket->key == key)
             {
-                return bucket->value;
+                return &bucket->value;
             }
 
             currentPsl++;
