@@ -12,6 +12,7 @@
 #include <functional>
 #include <stdexcept>
 #include <algorithm>
+#include <cassert>
 
 namespace UI
 {
@@ -277,7 +278,7 @@ namespace UI
         Control *control;
         /**
          * Membuat sebuah sel baru
-         * 
+         *
          * @param w, h Ukuran dari kontrol. Akan diberikan ke layouter.
          *             Jika SIZE_FILL maka ukuran kontrol akan memenuhi ruang yang ada
          *             Jika SIZE_DEFAULT maka ukuran kontrol akan diisi nilai default
@@ -305,6 +306,8 @@ namespace UI
      * Tipe data fungsi untuk callback
      */
     using CallbackType = std::function<LRESULT(CallbackParam)>;
+
+    void _ClearWindowControls(Window *window);
 
     /**
      * Sebuah struktur yang menyimpan informasi window
@@ -396,6 +399,8 @@ namespace UI
             fixedControls.clear();
             _msgListeners.clear();
             _cmdListeners.clear();
+
+            _ClearWindowControls(this);
         }
     };
 
@@ -409,7 +414,7 @@ namespace UI
         /**
          * HWND kontrol saat ini
          */
-        HWND hwnd;
+        HWND hwnd = 0;
         /**
          * Control id dari kontrol ini. Digenerate otomatis
          */
@@ -451,6 +456,7 @@ namespace UI
             {
                 _controlId = _nextControlId++;
             }
+            window->_childs.push_back(this);
             hwnd = CreateWindowExW(
                 _dwExStyle,
                 _className.c_str(),
@@ -470,6 +476,7 @@ namespace UI
          */
         virtual void UpdatePosDefer(HDWP hDefer, POINT pos, SIZE size)
         {
+            assert(hwnd != 0);
             DeferWindowPos(hDefer, hwnd, nullptr, pos.x, pos.y, size.cx, size.cy, SWP_NOZORDER);
         }
 
@@ -478,6 +485,7 @@ namespace UI
          */
         void ApplyDefaultFont()
         {
+            assert(hwnd != 0);
             SendMessageW(hwnd, WM_SETFONT, reinterpret_cast<LPARAM>(hDefaultFont), TRUE);
         }
 
@@ -486,9 +494,26 @@ namespace UI
          */
         void SetEnable(bool enable)
         {
+            assert(hwnd != 0);
             EnableWindow(hwnd, enable);
         }
+
+        /**
+         * Mengosongkan data di Control, dipanggil otomatis saat window di Clear
+         */
+        void Clear()
+        {
+            hwnd = 0;
+        }
     };
+
+    void _ClearWindowControls(Window *window)
+    {
+        for (Control *control : window->_childs)
+            control->Clear();
+
+        window->_childs.clear();
+    }
 
     /**
      * Kontrol yang digunakan untuk input text
@@ -512,6 +537,7 @@ namespace UI
          */
         std::wstring getText()
         {
+            assert(hwnd != 0);
             std::wstring result;
             int size = GetWindowTextLengthW(hwnd);
             if (size != 0)
@@ -531,19 +557,12 @@ namespace UI
      */
     struct Label : Control
     {
-        /**
-         * Text yang akan ditampilkan
-         * Harus diseteleh sebelum Create dipanggil
-         * Setelah pemanggilan create, tidak akan memberikan dampak
-         */
-        std::wstring text;
-
         SIZE GetDefaultSize() override
         {
             SIZE size;
             HDC hDC = GetDC(0);
             gdi.SelectObject(hDC, hDefaultFont);
-            gdi.GetTextExtentPoint32W(hDC, text.c_str(), text.length(), &size);
+            gdi.GetTextExtentPoint32W(hDC, _setupTitle.c_str(), _setupTitle.length(), &size);
             ReleaseDC(0, hDC);
 
             return size;
@@ -551,18 +570,19 @@ namespace UI
 
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
-            _setupTitle = text;
             _className = WC_STATICW;
             Control::Create(window, hParent, pos, size);
             ApplyDefaultFont();
         }
 
         /**
-         * Mengubah text kontrol, hanya bisa dijalankan setelah Create dan kontrol belum didestroy
+         * Mengubah text kontrol
          */
         void SetText(const std::wstring &text)
         {
-            SetWindowTextW(hwnd, text.c_str());
+            _setupTitle = text;
+            if (hwnd != 0)
+                SetWindowTextW(hwnd, text.c_str());
         }
     };
 
@@ -571,12 +591,6 @@ namespace UI
      */
     struct Button : Control
     {
-        /**
-         * Text yang akan ditampilkan
-         * Harus diseteleh sebelum Create dipanggil
-         * Setelah pemanggilan create, tidak akan memberikan dampak
-         */
-        std::wstring text;
         /**
          * Callback yang akan dipanggil saat tombol ini ditekan (saat tombo mendapatkan pesan WM_COMMAND)
          */
@@ -590,12 +604,21 @@ namespace UI
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
             _className = WC_BUTTONW;
-            _setupTitle = text;
             Control::Create(window, hParent, pos, size);
             ApplyDefaultFont();
 
             if (commandListener)
                 window->_cmdListeners.emplace(_controlId, commandListener);
+        }
+
+        /**
+         * Mengubah text kontrol
+         */
+        void SetText(const std::wstring &text)
+        {
+            _setupTitle = text;
+            if (hwnd != 0)
+                SetWindowTextW(hwnd, text.c_str());
         }
     };
 
@@ -619,6 +642,7 @@ namespace UI
          */
         void InsertColumn(const std::wstring &title, int width)
         {
+            assert(hwnd != 0);
             LVCOLUMNW lvc{};
             lvc.mask = LVCF_TEXT | LVCF_WIDTH;
             lvc.pszText = const_cast<wchar_t *>(title.c_str());
@@ -631,6 +655,7 @@ namespace UI
          */
         void DeleteAllRows()
         {
+            assert(hwnd != 0);
             ListView_DeleteAllItems(hwnd);
         }
 
@@ -641,6 +666,7 @@ namespace UI
          */
         int InsertRow(const std::wstring &text)
         {
+            assert(hwnd != 0);
             LVITEMW lvi{};
             lvi.iItem = 0x0FFFFFFF;
             lvi.mask = LVIF_TEXT;
@@ -656,6 +682,7 @@ namespace UI
          */
         void SetText(int row, int column, const std::wstring &text)
         {
+            assert(hwnd != 0);
             ListView_SetItemText(hwnd, row, column, const_cast<wchar_t *>(text.c_str()));
         }
     };
@@ -702,6 +729,7 @@ namespace UI
          */
         void SetParts(const std::vector<int> &sizes)
         {
+            assert(hwnd != 0);
             _rightEdges.resize(sizes.size());
 
             int right = 0;
@@ -721,6 +749,7 @@ namespace UI
          */
         void SetText(size_t index, const std::wstring &text)
         {
+            assert(hwnd != 0);
             SendMessageW(hwnd, SB_SETTEXT, MAKEWPARAM(MAKEWORD(index, 0), 0), reinterpret_cast<LPARAM>(text.c_str()));
         }
     };
@@ -765,6 +794,7 @@ namespace UI
          */
         void SetProgress(int pos)
         {
+            assert(hwnd != 0);
             SendMessageW(hwnd, PBM_SETPOS, pos, 0);
         }
 
@@ -774,6 +804,7 @@ namespace UI
          */
         void SetWaiting(bool isWaiting)
         {
+            assert(hwnd != 0);
             SendMessageW(hwnd, PBM_SETMARQUEE, static_cast<WPARAM>(isWaiting), 0);
             ToggleWindowStyle(hwnd, false, isWaiting, PBS_MARQUEE);
         }
@@ -824,6 +855,7 @@ namespace UI
          */
         void AddPage(const std::wstring &text, Window *page)
         {
+            assert(hwnd != 0);
             TCITEMW tci{0};
 
             tci.mask = TCIF_TEXT;
@@ -845,6 +877,7 @@ namespace UI
 
         void UpdatePosDefer(HDWP hDefer, POINT pos, SIZE size) override
         {
+            assert(hwnd != 0);
             Control::UpdatePosDefer(hDefer, pos, size);
 
             int paddingTop = 25;
@@ -881,6 +914,7 @@ namespace UI
          */
         void AddItem(const std::wstring &text)
         {
+            assert(hwnd != 0);
             SendMessageW(hwnd, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(text.c_str()));
         }
 
@@ -889,6 +923,7 @@ namespace UI
          */
         int GetSelectedIndex()
         {
+            assert(hwnd != 0);
             return SendMessageW(hwnd, CB_GETCURSEL, 0, 0);
         }
 
@@ -898,6 +933,7 @@ namespace UI
          */
         void SetSelectedIndex(int index)
         {
+            assert(hwnd != 0);
             SendMessageW(hwnd, CB_SETCURSEL, index, 0);
         }
 
@@ -906,6 +942,7 @@ namespace UI
          */
         std::wstring GetText(int index)
         {
+            assert(hwnd != 0);
             std::wstring res;
             size_t size = SendMessageW(hwnd, CB_GETLBTEXTLEN, index, 0);
             if (size)
@@ -923,6 +960,7 @@ namespace UI
          */
         std::wstring GetSelectedText()
         {
+            assert(hwnd != 0);
             return GetText(GetSelectedIndex());
         }
     };
@@ -962,7 +1000,7 @@ namespace UI
 
             for (size_t j = 0; j < row.size(); j++)
             {
-                const ControlCell& controlCell = row[j];
+                const ControlCell &controlCell = row[j];
                 LayouterCell &cell = cells[j];
                 cell.defaultSize = controlCell.control->GetDefaultSize();
                 cell.size = {controlCell.w, controlCell.h};
@@ -979,7 +1017,7 @@ namespace UI
 
             for (size_t j = 0; j < row.size(); j++)
             {
-                const ControlCell& controlCell = row[j];
+                const ControlCell &controlCell = row[j];
                 LayouterCell &cell = cells[j];
                 if (create)
                 {

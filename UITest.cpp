@@ -124,21 +124,21 @@ LRESULT OnMainWindowButton4Command(UI::CallbackParam param)
 
 LRESULT OnMainWindowCreate(UI::CallbackParam param)
 {
-    mainWindow.button1.text = L"Button 1";
+    mainWindow.button1.SetText(L"Button 1");
     mainWindow.button1.commandListener = OnMainWindowButton1Command;
 
-    mainWindow.button2.text = L"Button 2";
+    mainWindow.button2.SetText(L"Button 2");
     mainWindow.button2.commandListener = OnMainWindowButton2Command;
 
-    mainWindow.button3.text = L"Button 3";
+    mainWindow.button3.SetText(L"Button 3");
     mainWindow.button3.commandListener = OnMainWindowButton3Command;
 
-    mainWindow.button4.text = L"Button 4";
+    mainWindow.button4.SetText(L"Button 4");
     mainWindow.button4.commandListener = OnMainWindowButton4Command;
 
-    mainWindow.fromLabel.text = L"Dari: ";
+    mainWindow.fromLabel.SetText(L"Dari: ");
     mainWindow.fromTextBox._dwStyle |= WS_BORDER;
-    mainWindow.toLabel.text = L"Sampai: ";
+    mainWindow.toLabel.SetText(L"Sampai: ");
     mainWindow.toTextBox._dwStyle |= WS_BORDER;
 
     mainWindow.listView._dwStyle |= LVS_REPORT | WS_BORDER;

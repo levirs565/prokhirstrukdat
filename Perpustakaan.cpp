@@ -111,16 +111,16 @@ namespace TabFindBooksRange
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
-        fromLabel.text = L"Dari";
-        toLabel.text = L"Ke";
+        fromLabel.SetText(L"Dari");
+        toLabel.SetText(L"Ke");
 
         fromTextBox._dwStyle |= WS_BORDER;
         toTextBox._dwStyle |= WS_BORDER;
 
-        btnFind.text = L"Cari";
+        btnFind.SetText(L"Cari");
         btnFind.commandListener = OnFindClick;
 
-        label.text = L"Data belum dimuat";
+        label.SetText(L"Data belum dimuat");
 
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
@@ -196,9 +196,9 @@ namespace TabAllBooks
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
-        button.text = L"Tampilkan";
+        button.SetText(L"Tampilkan");
         button.commandListener = OnShowClick;
-        label.text = L"Data belum dimuat";
+        label.SetText(L"Data belum dimuat");
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
         window.controlsLayout = {
