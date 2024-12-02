@@ -527,6 +527,7 @@ namespace UI
 
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
+            _dwStyle |= ES_AUTOHSCROLL;
             _className = WC_EDITW;
             Control::Create(window, hParent, pos, size);
             ApplyDefaultFont();

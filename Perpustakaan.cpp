@@ -63,14 +63,88 @@ RBTree<Book, decltype(&BookTitleCompare)> tree(BookTitleCompare);
 RobinHoodHashMap<std::wstring, Book, decltype(&BookHash)> hashTable(BookHash);
 // std::unordered_map<std::wstring, Book> hashTable;
 
+namespace AddWindow
+{
+    UI::Window window;
+    UI::Tabs tabs;
+    UI::Label label;
+    UI::Label labelk;
+    UI::Label isbn;
+    UI::Label judul;
+    UI::Label penulis;
+    UI::Label tahun;
+    UI::Label penerbit;
+    UI::TextBox isbnTextBox;
+    UI::TextBox judulTextBox;
+    UI::TextBox penulisTextBox;
+    UI::TextBox tahunTextBox;
+    UI::TextBox penerbitTextBox;
+    UI::Button btnAdd;
+
+    LRESULT OnCreate(UI::CallbackParam param)
+    {
+        label.SetText(L"Masukkan Data Buku!");
+        isbn.SetText(L"ISBN :");
+        judul.SetText(L"Judul Buku :");
+        penulis.SetText(L"Penulis Buku :");
+        tahun.SetText(L"Tahun Terbit :");
+        penerbit.SetText(L"Penerbit :");
+        labelk.SetText(L" ");
+
+        isbnTextBox._dwStyle |= WS_BORDER;
+        judulTextBox._dwStyle |= WS_BORDER;
+        penulisTextBox._dwStyle |= WS_BORDER;
+        tahunTextBox._dwStyle |= WS_BORDER;
+        penerbitTextBox._dwStyle |= WS_BORDER;
+
+        btnAdd.SetText(L"Tambahkan Buku");
+
+        window.controlsLayout = {
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &label)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &labelk)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &isbn)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &isbnTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &judul)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &judulTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &penulis)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &penulisTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &tahun)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &tahunTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &penerbit)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &penerbitTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &labelk)},
+            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &btnAdd)}};
+        UI::LayoutControls(&window,true);
+
+        return 0;
+    }
+
+    void Show()
+    {
+        window.quitWhenClose = false;
+        window.title = L"Add WIndow";
+        window.registerMessageListener(WM_CREATE, OnCreate);
+        UI::ShowWindowClass(window);
+    }
+}
+
+
+    LRESULT OnAddClick(UI::CallbackParam param)
+    {
+        AddWindow::Show();
+        return 0;
+    }
 namespace TabFindBooksRange
 {
     UI::Window window;
     UI::Label fromLabel, toLabel;
     UI::TextBox fromTextBox, toTextBox;
     UI::Button btnFind;
+    UI::Button btnAdd;
+    UI::Button btnDelete;
     UI::ProgressBar progress;
     UI::Label label;
+    UI::Label labelk;
     UI::ListView listView;
     std::thread findThread;
 
@@ -121,8 +195,14 @@ namespace TabFindBooksRange
         btnFind.commandListener = OnFindClick;
 
         label.SetText(L"Data belum dimuat");
+        labelk.SetText(L" ");
 
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
+
+        btnAdd.SetText(L"Tambahkan Buku");
+        btnAdd.commandListener = OnAddClick;
+
+        btnDelete.SetText(L"Hapus Buku");
 
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &fromLabel),
@@ -132,7 +212,10 @@ namespace TabFindBooksRange
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnFind)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
 
         UI::LayoutControls(&window, true);
 
@@ -154,8 +237,11 @@ namespace TabAllBooks
     UI::Window window;
     UI::ComboBox combobox;
     UI::Button button;
+    UI::Button btnAdd;
+    UI::Button btnDelete;
     UI::ProgressBar progress;
     UI::Label label;
+    UI::Label labelk;
     UI::ListView listView;
     std::thread showThread;
 
@@ -200,22 +286,32 @@ namespace TabAllBooks
         button.commandListener = OnShowClick;
         label.SetText(L"Data belum dimuat");
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
+        
+        labelk.SetText(L" ");
+
+        btnAdd.SetText(L"Tambahkan Buku");
+        btnAdd.commandListener = OnAddClick;
+
+        btnDelete.SetText(L"Hapus Buku");
 
         window.controlsLayout = {
-            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &combobox),
+            {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &button)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
 
-        combobox.AddItem(L"Preorder");
-        combobox.AddItem(L"Inorder");
-        combobox.AddItem(L"Postorder");
+        combobox.AddItem(L"PreOrder");
+        combobox.AddItem(L"InOrder");
+        combobox.AddItem(L"PostOrder");
         combobox.SetSelectedIndex(1);
 
         listView.InsertColumn(L"ISBN", 100);
-        listView.InsertColumn(L"Judul", 200);
+        listView.InsertColumn(L"Judul Buku", 200);
 
         return 0;
     }
@@ -225,6 +321,143 @@ namespace TabAllBooks
         window.title = L"TabAllBooks";
         window.registerMessageListener(WM_CREATE, OnCreate);
     }
+}
+
+namespace TabDetailsBooks{
+    UI::Window window ; 
+    UI::Label label;
+    UI::Label ISBNlabel;
+    UI::Button btnSearch;
+    UI::TextBox ISBNTextBox;
+    UI::StatusBar statusBar;
+    UI::ListView listView;
+    
+    
+    void DoFind()
+    {
+        label.SetText(L"Mencari buku sesuai dengan ISBN");
+        Timer timer;
+
+        {
+            std::wstring isbn = ISBNTextBox.getText();
+            timer.start();
+            Book* buku = hashTable.get(isbn);
+            timer.end();
+            if (buku == nullptr){
+                label.SetText(L"TIdak DiTemukan");
+            }else{
+                listView.SetText(0,1, buku->isbn);
+                listView.SetText(1,1, buku->title);
+                //KURENG SIKIT
+            }
+        }
+        btnSearch.SetEnable(true);
+    }
+
+    LRESULT OnFindClick(UI::CallbackParam){
+        btnSearch.SetEnable(false);
+        DoFind();
+        return 0;
+    }
+
+    LRESULT onCreate(UI::CallbackParam param)
+    {
+        ISBNlabel.SetText(L"Cari Berdasarkan ISBN :");
+        ISBNTextBox._dwStyle |= WS_BORDER;
+
+        btnSearch.SetText(L"Cari");
+        btnSearch.commandListener = OnFindClick;
+
+        label.SetText(L"Data Belum Dimuat");
+
+        listView._dwStyle |= LVS_REPORT | WS_BORDER;
+
+        window.controlsLayout = {
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &ISBNlabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &ISBNTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnSearch)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
+        UI::LayoutControls(&window, true);
+
+        listView.InsertColumn(L"Prop", 100);
+        listView.InsertRow(L"ISBN              :");
+        listView.InsertRow(L"Judul Buku        :");
+        listView.InsertRow(L"Penulis Buku      :");
+        listView.InsertRow(L"Tahun Terbit     :");
+        listView.InsertRow(L"Penerbit Buku  :");
+        listView.InsertColumn (L"Value", 200);
+        
+        return 0;
+    }
+
+    void Init()
+    {
+        window.title = L"DetailsBooks";
+        window.registerMessageListener(WM_CREATE, onCreate);
+    }
+}
+
+namespace TabHistoryDelete{
+    UI::Window window;
+    UI::Label label;
+    UI::ComboBox combobox;
+    UI::Button btnRestore;
+    UI::Button btnTampil;
+    UI::Label labelk;
+    UI::ProgressBar progress;
+    UI::ListView listView;
+    std::thread showThread;
+
+    LRESULT OnShowClick(UI::CallbackParam param)
+    {
+        btnTampil.SetEnable(false);
+        if(showThread.joinable())
+        {
+            showThread.join();
+        }
+        // showThread = std::thread(DoShow);
+        return 0;
+    }
+
+    LRESULT OnCreate(UI::CallbackParam param)
+    {
+        btnTampil.SetText(L"Tampilkan");
+        label.SetText(L"Data Belum Dimuat");
+        labelk.SetText(L" ");
+        btnRestore.SetText(L"Restore");
+
+        listView._dwStyle |= LVS_REPORT | WS_BORDER;
+
+        window.controlsLayout = {
+            {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnTampil)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnRestore)}};
+
+        UI::LayoutControls(&window, true);
+
+        combobox.AddItem(L"PreOrder");
+        combobox.AddItem(L"InOrder");
+        combobox.AddItem(L"PostOrder");
+        combobox.SetSelectedIndex(1);
+
+        listView.InsertColumn(L"ISBN", 100);
+        listView.InsertColumn(L"Judul Buku", 200); 
+
+        return 0; 
+    }
+
+    void Init ()
+    {
+        window.title = L"TabHistoryDelete";
+        window.registerMessageListener(WM_CREATE, OnCreate);
+    }
+
+
 }
 
 namespace MainWindow
@@ -268,24 +501,25 @@ namespace MainWindow
         stream << L"Data dimuat dari CSV dalam " << timer.durationStr();
         statusBar.SetText(1, stream.str());
 
-        // size_t maxPsl = 0;
-        // std::wstring isbn = L"";
-        // for (size_t i = 0; i < hashTable.bucketSize; i++)
-        // {
-        //     if (hashTable.buckets[i].filled)
-        //     {
-        //         if (hashTable.buckets[i].psl >= maxPsl)
-        //         {
-        //             maxPsl = hashTable.buckets[i].psl;
-        //             isbn = hashTable.buckets[i].key;
-        //         }
-        //     }
-        // }
+        size_t maxPsl = 0;
+        std::wstring isbn = L"";
+        for (size_t i = 0; i < hashTable.bucketSize; i++)
+        {
+            if (hashTable.buckets[i].filled)
+            {
+                if (hashTable.buckets[i].psl >= maxPsl)
+                {
+                    maxPsl = hashTable.buckets[i].psl;
+                    isbn = hashTable.buckets[i].key;
+                }
+            }
+        }
 
-        // std::cout << "Max PSL: " << maxPsl << std::endl;
+        std::cout << "Max PSL: " << maxPsl << std::endl;
 
-        // timer.start();
-        // std::wcout << hashTable.get(isbn).value().isbn << std::endl;
+        timer.start();
+        std::wcout << hashTable.get(isbn)->isbn << std::endl;
+        std::wcout << hashTable.get(L"0374157065")->title << std::endl;
         // timer.end();
         // std::wcout << timer.durationMs() << std::endl;
     }
@@ -309,6 +543,12 @@ namespace MainWindow
 
         TabFindBooksRange::Init();
         tabs.AddPage(L"Temukan Buku dalam Rentang", &TabFindBooksRange::window);
+
+        TabDetailsBooks::Init();
+        tabs.AddPage(L"Details Buku", &TabDetailsBooks::window);
+
+        TabHistoryDelete::Init();
+        tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
         loadThread = std::thread(DoLoad);
 
