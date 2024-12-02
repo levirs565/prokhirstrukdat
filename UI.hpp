@@ -1,5 +1,9 @@
 #pragma once
 
+/*
+    Sebuah library UI sederhana yang menggunakan Winapi (Windows API)
+*/
+
 #include "Winapi.hpp"
 #include <CommCtrl.h>
 #include <string>
@@ -15,6 +19,9 @@ namespace UI
     int _nCmdShow;
     UINT_PTR _nextControlId = 4001;
 
+    /**
+     * Struktur yang digunakan untuk menyimpan pointer ke fungsi di library Gdi32.dll
+     */
     struct GDI
     {
         using CreateFontWT = HFONT(WINAPI *)(int cHeight, int cWidth, int cEscapement, int cOrientation, int cWeight, DWORD bItalic,
@@ -36,6 +43,9 @@ namespace UI
         GetDeviceCapsT GetDeviceCaps;
     } gdi;
 
+    /**
+     * Fungsi untuk memuat library DLL secara dinamis
+     */
     HINSTANCE _LoadLibrary(const char *library)
     {
         HINSTANCE inst = LoadLibraryA(library);
@@ -46,6 +56,9 @@ namespace UI
         return inst;
     }
 
+    /**
+     * Fungsi yang akan menghasilkan pointer ke fungsi yang menunjuk ke fungsi dengan nama `name` dari library yang ditunjuk `hInst`
+     */
     template <typename T>
     T _GetProcAddress(HINSTANCE hInst, const char *name)
     {
@@ -57,6 +70,9 @@ namespace UI
         return func;
     }
 
+    /**
+     * Memuat library Gdi32.dll dan mengisi struktur GDI dengan pointer ke fungsi yang sesuai
+     */
     void _LoadGDI()
     {
         HINSTANCE inst = _LoadLibrary("Gdi32.dll");
@@ -66,6 +82,9 @@ namespace UI
         gdi.GetDeviceCaps = _GetProcAddress<GDI::GetDeviceCapsT>(inst, "GetDeviceCaps");
     }
 
+    /**
+     * Memuaat font yang akan digunakan sebagai font default
+     */
     HFONT hDefaultFont;
     void _InitFont()
     {
@@ -84,9 +103,12 @@ namespace UI
         }
     }
 
+    /**
+     * Memuat library Comctl32.dll dan memanggil fungsi InitCommonControls
+     * InitCommonControls akan menginisialisi kontrol umum seperti ListView agar bisa digunakan aplikasi
+     */
     void _CommCtlInitCommonControl()
     {
-
         HINSTANCE inst = _LoadLibrary("Comctl32.dll");
 
         using InitControlsT = void(WINAPI *)(void);
@@ -95,7 +117,13 @@ namespace UI
         func();
     }
 
-    void _LoadManifest() {
+    /**
+     * Memuat file manifest `app.manifest`
+     * Manifest dibutuhkan agar controk menggunakan Common Controls V6 yang mempunyai tampilan modern
+     * Lihat file `app.manifest` untuk lebih lanjut
+     */
+    void _LoadManifest()
+    {
         ACTCTX actx{0};
         actx.cbSize = sizeof(ACTCTX);
         actx.dwFlags = 0;
@@ -111,8 +139,13 @@ namespace UI
             throw Winapi::Error("ActivateActCtx");
     }
 
+    /**
+     * Mensetup library UI
+     * Melakukan semua prosedur yang harus dilakukan sebelum membuat window apapun
+     * Harus dipanggil sebelum membuat Window
+     */
     void Setup(HINSTANCE instance, int nCmdShow)
-    {   
+    {
         _LoadManifest();
         _CommCtlInitCommonControl();
         _LoadGDI();
@@ -121,6 +154,10 @@ namespace UI
         _nCmdShow = nCmdShow;
     }
 
+    /**
+     * Sebuah layout engine berjenis flow
+     * Layout hanya bisa berjalan dari atas ke bawah dan dari kiri ke nana
+     */
     struct Layouter
     {
         int x, y, w, h;
@@ -196,6 +233,9 @@ namespace UI
     struct Control;
     struct FixedControl;
 
+    /**
+     * Struktur yang akan diberikan ke callback
+     */
     struct CallbackParam
     {
         Window *window;
@@ -204,32 +244,95 @@ namespace UI
         LPARAM lParam;
     };
 
+    /**
+     * Tipe data fungsi untuk callback
+     */
     using CallbackType = std::function<LRESULT(CallbackParam)>;
 
+    /**
+     * Sebuah struktur yang menyimpan informasi window
+     */
     struct Window
     {
+        /**
+         * Judul dan nama kelas dari window
+         */
         std::wstring title;
+        /**
+         * Menentukan apakah jika window di close maka aplikasi harus dihentikan
+         */
         bool quitWhenClose = false;
+        /**
+         * Menentukan handle HWND ke window parent
+         * Dubutuhkan jika window dijasikan sebagai subwindow atau menjadi kontrol di dalam window
+         */
         HWND parentHwnd = 0;
 
+        /**
+         * Menentukan dwStyle pada pemanggilan CreateWindowExW
+         */
         DWORD dwStyle = WS_OVERLAPPEDWINDOW;
+        /**
+         * Layouter yang digunakan untuk melayout kontrol
+         */
         Layouter layouter;
+        /**
+         * Sebuah map/table yang memetqkan `messageCode` dengan `callback`
+         * `callback` akan dipanggil saat window mendapatkan pesan dengan kode `messageKode`
+         */
         std::map<UINT, CallbackType> _msgListeners;
+        /**
+         * Sebuah map/table yang memetqkan `controID` dengan `callback`
+         * `callback` akan dipanggil saat kontrol dengan id `controlID` mendapatkan pesan WM_COMMAND
+         */
         std::map<UINT_PTR, CallbackType> _cmdListeners;
+        /**
+         * Sebuah map/table yang memetqkan `controID`,`notifyCode` dengan `callback`
+         * `callback` akan dipanggil saat kontrol dengan id `controlID` mendapatkan pesan WM_NOTIFY dengan kode pesa `notifyCode`
+         */
         std::map<std::pair<UINT_PTR, UINT>, CallbackType> _notifyListeners;
+        /**
+         * Berisi hasil dari CreateWindowExW
+         */
         ATOM _atom = 0;
+        /**
+         * Berisi handle HWND window sekarang
+         */
         HWND hwnd = 0;
+        /**
+         * Berisi background dari window, akan digunakan sebagai parameter di CreateWindowExW
+         */
         HBRUSH hBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
 
+        /**
+         * Sebuah array dinamis 2D, yang berisi baris dan setiap baris berisi kontrol sebagai kolom
+         * Kontrol akan ditata berdasarkan isi array ini
+         * Jangan lupa memanggil LayoutControls(&window, true) setalah menyetel nilai ini
+         */
         std::vector<std::vector<Control *>> controls;
+        /**
+         * Array dinamis yang berisi kontrol yang memiliki posisi tetap, contohnya statusbar
+         */
         std::vector<FixedControl *> fixedControls;
+        /**
+         * Berisi semua kontrol yang menjadi child dari window ini
+         * Belum berguna untuk saat ini
+         */
         std::vector<Control *> _childs;
 
+        /**
+         * Mendaftarkan callback yang akan dipanggil saat window mendapatkan pesan dengan kode `message`
+         */
         void registerMessageListener(UINT message, CallbackType callback)
         {
             _msgListeners.emplace(message, callback);
         }
 
+        /**
+         * Menreset isi dari windows
+         * Note: Jangan memenggail fungsi ini
+         * Fungsi ini dipanggil otomatis saat window mendapatkan pesan WM_DESTROY
+         */
         void Clear()
         {
             controls.clear();
@@ -241,20 +344,55 @@ namespace UI
 
     HWND CreateWindowClass(Window &data);
 
+    /**
+     * Struktur untuk kontrol
+     */
     struct Control
     {
+        /**
+         * Ukuran dari kontrol. Akan diberikan ke layouter.
+         * Jika -1 maka ukuran kontrol akan memenuhi ruang yang ada
+         */
         int w = 0, h = 0;
+        /**
+         * HWND kontrol saat ini
+         */
         HWND hwnd;
-
+        /**
+         * Control id dari kontrol ini. Digenerate otomatis
+         */
         UINT_PTR _controlId = 0;
-        std::wstring _className, _setupTitle;
+        /**
+         * Parameter title yang akan diberika kepada CreateWindowExW
+         */
+        std::wstring _className;
+        /**
+         * Parameter title yang akan diberika kepada CreateWindowExW
+         */
+        std::wstring _setupTitle;
+        /**
+         * Parameter dwStyle yang akan diberika kepada CreateWindowExW. Mengatur style dari kontrol
+         */
         DWORD _dwStyle = WS_CHILD | WS_VISIBLE, _dwExStyle = 0;
 
+        /**
+         * Mendapatkan ukuran default kontrol.
+         * Jika w = 0, maka akan diganti dengan cx hasil fungsi ini
+         * Jika h = 0, maka akan diganti dengan cy hasil fungsi ini
+         */
         virtual SIZE GetDefaultSize()
         {
             return {0, 0};
         }
 
+        /**
+         * Membuat kontrol dengan CreateWindowExW
+         * Fungsi init secara otomatis mengisi controlId
+         * @param window pointer ke window parent
+         * @param hParent HWND dari parent, jika 0 maka hwnd dari window akan digunakan.
+         * @param pos posisi dari kontrol
+         * @param size ukuran dari kontrol
+         */
         virtual void Create(Window *window, HWND hParent, POINT pos, SIZE size)
         {
             if (_controlId == 0)
@@ -273,21 +411,36 @@ namespace UI
                 0);
         }
 
+        /**
+         * Mengupdate posisi dan ukuran dari kontrol dengan defer
+         * Posisi dan ukuran akan diterapkan setelah EndDeferWindowPos dipanggil
+         * Digunakan untuk meningkatkan performa saat window perlu melakukan tata letak ulang
+         */
         virtual void UpdatePosDefer(HDWP hDefer, POINT pos, SIZE size)
         {
             DeferWindowPos(hDefer, hwnd, nullptr, pos.x, pos.y, size.cx, size.cy, SWP_NOZORDER);
         }
 
+        /**
+         * Mennerapkan font default
+         */
         void ApplyDefaultFont()
         {
             SendMessageW(hwnd, WM_SETFONT, reinterpret_cast<LPARAM>(hDefaultFont), TRUE);
         }
 
-        void SetEnable(bool enable) {
+        /**
+         * Meengenable dan mendisable window
+         */
+        void SetEnable(bool enable)
+        {
             EnableWindow(hwnd, enable);
         }
     };
 
+    /**
+     * Kontrol yang digunakan untuk input text
+     */
     struct TextBox : Control
     {
         SIZE GetDefaultSize() override
@@ -302,6 +455,9 @@ namespace UI
             ApplyDefaultFont();
         }
 
+        /**
+         * Mendapatkan teks yang dimasukkan ke kontrol
+         */
         std::wstring getText()
         {
             std::wstring result;
@@ -317,8 +473,17 @@ namespace UI
         }
     };
 
+    /**
+     * Berisi sebuah label/teks
+     * Ukuran default akan dihitung berdasasarkan ukuran text
+     */
     struct Label : Control
     {
+        /**
+         * Text yang akan ditampilkan
+         * Harus diseteleh sebelum Create dipanggil
+         * Setelah pemanggilan create, tidak akan memberikan dampak
+         */
         std::wstring text;
 
         SIZE GetDefaultSize() override
@@ -340,14 +505,29 @@ namespace UI
             ApplyDefaultFont();
         }
 
-        void SetText(const std::wstring& text) {
+        /**
+         * Mengubah text kontrol, hanya bisa dijalankan setelah Create dan kontrol belum didestroy
+         */
+        void SetText(const std::wstring &text)
+        {
             SetWindowTextW(hwnd, text.c_str());
         }
     };
 
+    /**
+     * Kontrol berupa tombol
+     */
     struct Button : Control
     {
+        /**
+         * Text yang akan ditampilkan
+         * Harus diseteleh sebelum Create dipanggil
+         * Setelah pemanggilan create, tidak akan memberikan dampak
+         */
         std::wstring text;
+        /**
+         * Callback yang akan dipanggil saat tombol ini ditekan (saat tombo mendapatkan pesan WM_COMMAND)
+         */
         CallbackType commandListener;
 
         SIZE GetDefaultSize() override
@@ -366,7 +546,11 @@ namespace UI
                 window->_cmdListeners.emplace(_controlId, commandListener);
         }
     };
-
+    
+    /**
+     * Kontrol berupa listView
+     * Untuk membuat kontrol ini menjadi tabel setel _dwStyle |= LVS_REPORT;
+     */
     struct ListView : Control
     {
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
@@ -376,6 +560,11 @@ namespace UI
             Control::Create(window, hParent, pos, size);
         }
 
+        /**
+         * Menambahkan kolom
+         * @param title judul kolom
+         * @param width panjang dari kolom
+         */
         void InsertColumn(const std::wstring &title, int width)
         {
             LVCOLUMNW lvc{};
@@ -385,10 +574,19 @@ namespace UI
             ListView_InsertColumn(hwnd, 0xFFFF, &lvc);
         }
 
-        void DeleteAllRows() {
+        /**
+         * Menghapus semua baris
+         */
+        void DeleteAllRows()
+        {
             ListView_DeleteAllItems(hwnd);
         }
 
+        /**
+         * Menambahkan baris baru
+         * @param text berisi isi dari kolom pertama
+         * @result index dari baris yang ditambahkan
+         */
         int InsertRow(const std::wstring &text)
         {
             LVITEMW lvi{};
@@ -398,17 +596,33 @@ namespace UI
             return ListView_InsertItem(hwnd, &lvi);
         }
 
+        /**
+         * Mengganti teks pada baris dan kolom tertentu
+         * @param row indeks dari baris, bisa berupa hasil InsertRow
+         * @param column indeks dari kolom
+         * @param text isi dari sel
+         */
         void SetText(int row, int column, const std::wstring &text)
         {
             ListView_SetItemText(hwnd, row, column, const_cast<wchar_t *>(text.c_str()));
         }
     };
 
+    /**
+     * Kontrol yang dapat dimasukkan ke window.fixedControls
+     */
     struct FixedControl
     {
+        /**
+         * Fungsi yang dipanggil saat kontrol perlu mengatur posisi dan ukuran setelah window di resize
+         */
         virtual void Repos() = 0;
     };
 
+    /**
+     * Kontrol yang tampil di bagian bawah
+     * Kontrol ini dibagi menjadi beberapa bagian
+     */
     struct StatusBar : Control, FixedControl
     {
         std::vector<int> _rightEdges;
@@ -430,6 +644,10 @@ namespace UI
             SendMessageW(hwnd, WM_SIZE, 0, 0);
         }
 
+        /**
+         * Mengubah jumlah dan ukuran bagian statusbar
+         * @param sizes array berisi ukuran bagian
+         */
         void SetParts(const std::vector<int> &sizes)
         {
             _rightEdges.resize(sizes.size());
@@ -444,12 +662,24 @@ namespace UI
             SendMessageW(hwnd, SB_SETPARTS, _rightEdges.size(), reinterpret_cast<LPARAM>(&_rightEdges[0]));
         }
 
+        /**
+         * Mengubah teks pada bagian tertentu
+         * @param index indeks bagian
+         * @param text teks untuk bagian
+         */
         void SetText(size_t index, const std::wstring &text)
         {
             SendMessageW(hwnd, SB_SETTEXT, MAKEWPARAM(MAKEWORD(index, 0), 0), reinterpret_cast<LPARAM>(text.c_str()));
         }
     };
-
+    
+    /**
+     * Mengaktifkan dan menonaktifkan style dari kontrol
+     * @param hwnd HWND dari kontrol
+     * @param isEx jika true maka style termasuk di dwExStyle dan jika false style termasuk di dwStyle
+     * @param add jika true maka menambahkan style jika false maka menghapus style
+     * @param style kode style yang akan ditambahkan 
+     */
     void ToggleWindowStyle(HWND hwnd, bool isEx, bool add, DWORD style)
     {
         LONG_PTR current = GetWindowLongPtrW(hwnd, isEx ? GWL_EXSTYLE : GWL_STYLE);
@@ -460,6 +690,9 @@ namespace UI
         SetWindowLongPtrW(hwnd, isEx ? GWL_EXSTYLE : GWL_STYLE, current);
     }
 
+    /**
+     * Kontrol yang akan menampailkan progress
+     */
     struct ProgressBar : Control
     {
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
@@ -469,15 +702,24 @@ namespace UI
             Control::Create(window, hParent, pos, size);
         }
 
-        SIZE GetDefaultSize() override {
+        SIZE GetDefaultSize() override
+        {
             return {75, 23};
         }
 
+        /**
+         * Menentukan progress dalam bentuk persen
+         * @param pos nilai dalam persen, jika 10 berarti 10%
+         */
         void SetProgress(int pos)
         {
             SendMessageW(hwnd, PBM_SETPOS, pos, 0);
         }
 
+        /**
+         * Menentukan apakah progressbar dalam keadaaan menunggu/intederminate
+         * Gunakan ini jika progress tidak dapat ditentukan
+         */
         void SetWaiting(bool isWaiting)
         {
             SendMessageW(hwnd, PBM_SETMARQUEE, static_cast<WPARAM>(isWaiting), 0);
@@ -485,6 +727,10 @@ namespace UI
         }
     };
 
+    /**
+     * Kontrol yang akan menjadi tab
+     * Tab terdiri dari judul dan body
+     */
     struct Tabs : Control
     {
         std::vector<HWND> _windows;
@@ -503,6 +749,10 @@ namespace UI
                 std::bind(&Tabs::OnSelChange, this, std::placeholders::_1));
         }
 
+        /**
+         * Callback yang akan dipanggil saat pilihan di tab diganti
+         * Akan mengganti body yang aktif sesuai dengan pilihan di tab
+         */
         LRESULT OnSelChange(CallbackParam param)
         {
             size_t selected = static_cast<size_t>(TabCtrl_GetCurSel(hwnd));
@@ -515,6 +765,11 @@ namespace UI
             return 0;
         }
 
+        /**
+         * Menambahkan halaman baru
+         * @param text berisi judul dari halaman
+         * @param page sebuah window yang akan menjadi body, window harus belum di Create
+         */
         void AddPage(const std::wstring &text, Window *page)
         {
             TCITEMW tci{0};
@@ -548,6 +803,9 @@ namespace UI
         }
     };
 
+    /**
+     * Kontrol berupa pilihan dropdown
+     */
     struct ComboBox : Control
     {
         SIZE GetDefaultSize() override
@@ -565,20 +823,35 @@ namespace UI
             ApplyDefaultFont();
         }
 
+        /**
+         * Menambahkan item ke kontrol
+         * @param text teks untuk item
+         */
         void AddItem(const std::wstring &text)
         {
             SendMessageW(hwnd, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(text.c_str()));
         }
 
+        /**
+         * @result Mendapatkan indedks item yang terpilih
+         */
         int GetSelectedIndex()
         {
             return SendMessageW(hwnd, CB_GETCURSEL, 0, 0);
         }
 
-        void SetSelectedIndex(int index) {
+        /**
+         * Mengganti item yang terpilih
+         * @param index indeks item yang akan dipilih
+         */
+        void SetSelectedIndex(int index)
+        {
             SendMessageW(hwnd, CB_SETCURSEL, index, 0);
         }
 
+        /**
+         * Mendapatkan teks item pada indeks tertentu
+         */
         std::wstring GetText(int index)
         {
             std::wstring res;
@@ -593,12 +866,20 @@ namespace UI
             return res;
         }
 
+        /**
+         * Mendapatkan teks pada item yang terpilih
+         */
         std::wstring GetSelectedText()
         {
             return GetText(GetSelectedIndex());
         }
     };
 
+    /**
+     * Melakukan proses tata letak kontrol pada window
+     * @param window window yang akan ditata kontrolnya
+     * @param create jika true, control akan dibuat, jika false maka kontrol hanya akan mendapatkan update posisi dan ukuran
+     */
     void LayoutControls(Window *window, bool create)
     {
         bool firstRow = true;
@@ -662,6 +943,15 @@ namespace UI
         }
     }
 
+    /**
+     * Fungsi utama yang akan dipanggil saat window mendapatkan pesan
+     * Fungsi ini akan 
+     * - memanggil callback yang tertaut dengan pesan yang sesaui
+     * - Jika pesan berupa WM_COMMAND, maka akan memanggil callbak yang tertaut dengan control yang sesaui
+     * - Jika pesan berupa WM_NOTIFY, maka akan memanggil callback yang tertantu dengan control dan kode notify yang sesuao
+     * - Jika ukuran window berubah (pesan WM_SIZE), maka akan melakukan tata ulang kontrol pada window
+     * - akan men-Clear window yang dihancurkan
+     */
     LRESULT CALLBACK _WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         Window *self = nullptr;
@@ -741,6 +1031,10 @@ namespace UI
         return DefWindowProcW(hwnd, uMsg, wParam, lParam);
     }
 
+    /**
+     * Membuat kelas dari Window
+     * Jika kelas sudah pernah dibuat, maka kelas sebelumnya akan di unregister
+     */
     HWND CreateWindowClass(Window &data)
     {
         if (data._atom != 0)
@@ -786,12 +1080,19 @@ namespace UI
         return hwnd;
     }
 
+    /**
+     * Membuat kelas dari window dan menampilkanya
+     */
     void ShowWindowClass(Window &data)
     {
 
         ShowWindow(CreateWindowClass(data), _nCmdShow);
     }
 
+    /**
+     * Menjalankan event loop
+     * Fungsi ini harus dijalankan pada fungsi main/WinMain
+     */
     int RunEventLoop()
     {
         MSG msg = {};
