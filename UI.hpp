@@ -155,6 +155,7 @@ namespace UI
     }
 
     const LONG SIZE_FILL = -1;
+    const LONG SIZE_DEFAULT = 0;
 
     struct LayouterCell
     {
@@ -184,9 +185,9 @@ namespace UI
             {
                 for (LayouterCell &cell : row)
                 {
-                    if (cell.size.cx == 0)
+                    if (cell.size.cx == SIZE_DEFAULT)
                         cell.size.cx = cell.defaultSize.cx;
-                    if (cell.size.cy == 0)
+                    if (cell.size.cy == SIZE_DEFAULT)
                         cell.size.cy = cell.defaultSize.cy;
                 }
             }
@@ -269,6 +270,26 @@ namespace UI
     struct Control;
     struct FixedControl;
 
+    struct ControlCell
+    {
+        LONG w;
+        LONG h;
+        Control *control;
+        /**
+         * Membuat sebuah sel baru
+         * 
+         * @param w, h Ukuran dari kontrol. Akan diberikan ke layouter.
+         *             Jika SIZE_FILL maka ukuran kontrol akan memenuhi ruang yang ada
+         *             Jika SIZE_DEFAULT maka ukuran kontrol akan diisi nilai default
+         */
+        ControlCell(LONG w, LONG h, Control *control)
+        {
+            this->w = w;
+            this->h = h;
+            this->control = control;
+        }
+    };
+
     /**
      * Struktur yang akan diberikan ke callback
      */
@@ -341,11 +362,11 @@ namespace UI
         HBRUSH hBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
 
         /**
-         * Sebuah array dinamis 2D, yang berisi baris dan setiap baris berisi kontrol sebagai kolom
+         * Sebuah array dinamis 2D, yang berisi baris dan setiap baris berisi sel/kolom
          * Kontrol akan ditata berdasarkan isi array ini
          * Jangan lupa memanggil LayoutControls(&window, true) setalah menyetel nilai ini
          */
-        std::vector<std::vector<Control *>> controls;
+        std::vector<std::vector<ControlCell>> controlsLayout;
         /**
          * Array dinamis yang berisi kontrol yang memiliki posisi tetap, contohnya statusbar
          */
@@ -371,7 +392,7 @@ namespace UI
          */
         void Clear()
         {
-            controls.clear();
+            controlsLayout.clear();
             fixedControls.clear();
             _msgListeners.clear();
             _cmdListeners.clear();
@@ -385,11 +406,6 @@ namespace UI
      */
     struct Control
     {
-        /**
-         * Ukuran dari kontrol. Akan diberikan ke layouter.
-         * Jika -1 maka ukuran kontrol akan memenuhi ruang yang ada
-         */
-        int w = 0, h = 0;
         /**
          * HWND kontrol saat ini
          */
@@ -923,9 +939,9 @@ namespace UI
         if (!create)
         {
             int count = 0;
-            for (const std::vector<Control *> &row : window->controls)
+            for (const std::vector<ControlCell> &row : window->controlsLayout)
             {
-                count += window->controls.size();
+                count += window->controlsLayout.size();
             }
 
             hDefer = BeginDeferWindowPos(count);
@@ -936,42 +952,42 @@ namespace UI
         window->layouter.size.cx = rect.right - rect.left;
         window->layouter.size.cy = rect.bottom - rect.top;
 
-        window->layouter._cells.resize(window->controls.size());
+        window->layouter._cells.resize(window->controlsLayout.size());
 
-        for (size_t i = 0; i < window->controls.size(); i++)
+        for (size_t i = 0; i < window->controlsLayout.size(); i++)
         {
-            const std::vector<Control *> &row = window->controls[i];
+            const std::vector<ControlCell> &row = window->controlsLayout[i];
             std::vector<LayouterCell> &cells = window->layouter._cells[i];
             cells.resize(row.size());
 
             for (size_t j = 0; j < row.size(); j++)
             {
-                Control *control = row[j];
+                const ControlCell& controlCell = row[j];
                 LayouterCell &cell = cells[j];
-                cell.defaultSize = control->GetDefaultSize();
-                cell.size = {control->w, control->h};
+                cell.defaultSize = controlCell.control->GetDefaultSize();
+                cell.size = {controlCell.w, controlCell.h};
             }
         }
 
         window->layouter.Build();
 
-        for (size_t i = 0; i < window->controls.size(); i++)
+        for (size_t i = 0; i < window->controlsLayout.size(); i++)
         {
-            const std::vector<Control *> &row = window->controls[i];
+            const std::vector<ControlCell> &row = window->controlsLayout[i];
             std::vector<LayouterCell> &cells = window->layouter._cells[i];
             cells.resize(row.size());
 
             for (size_t j = 0; j < row.size(); j++)
             {
-                Control *control = row[j];
+                const ControlCell& controlCell = row[j];
                 LayouterCell &cell = cells[j];
                 if (create)
                 {
-                    control->Create(window, 0, cell.pos, cell.size);
+                    controlCell.control->Create(window, 0, cell.pos, cell.size);
                 }
                 else
                 {
-                    control->UpdatePosDefer(hDefer, cell.pos, cell.size);
+                    controlCell.control->UpdatePosDefer(hDefer, cell.pos, cell.size);
                 }
             }
         }
