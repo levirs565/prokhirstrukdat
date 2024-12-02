@@ -154,78 +154,114 @@ namespace UI
         _nCmdShow = nCmdShow;
     }
 
+    const LONG SIZE_FILL = -1;
+
+    struct LayouterCell
+    {
+        SIZE size;
+        SIZE defaultSize;
+        POINT pos;
+    };
+
     /**
      * Sebuah layout engine berjenis flow
      * Layout hanya bisa berjalan dari atas ke bawah dan dari kiri ke nana
      */
     struct Layouter
     {
-        int x, y, w, h;
-        int nextX, nextY;
+        LONG paddingBottom = 0;
+        LONG spacing = 5;
+        SIZE size = {};
+        std::vector<std::vector<LayouterCell>> _cells;
+        std::vector<LONG> _rowsSize;
 
-        int maxW = 0, maxH = 0;
-        int paddingBottom = 0;
-
-        int spacing = 5;
-
-        void init(HWND hwnd)
+        void Build()
         {
-            x = spacing;
-            y = spacing;
+            LONG availWidth = size.cx;
+            LONG availHeight = size.cy - paddingBottom;
 
-            RECT rect;
-            GetClientRect(hwnd, &rect);
-
-            w = rect.right - rect.left;
-            h = rect.bottom - rect.top - paddingBottom;
-
-            nextX = 0;
-            nextY = 0;
-            maxW = 0;
-            maxH = 0;
-        }
-
-        void nextRow()
-        {
-            if (maxH == 0)
-                return;
-
-            x = spacing;
-            y += maxH + spacing;
-            maxH = 0;
-        }
-
-        void nextColumn()
-        {
-            if (maxW == 0)
-                return;
-
-            x = nextX + spacing;
-            maxW = 0;
-        }
-
-        POINT pos()
-        {
-            return {x, y};
-        }
-
-        SIZE component(int w, int h)
-        {
-            if (w == -1)
+            for (std::vector<LayouterCell> &row : _cells)
             {
-                w = this->w - x - spacing;
+                for (LayouterCell &cell : row)
+                {
+                    if (cell.size.cx == 0)
+                        cell.size.cx = cell.defaultSize.cx;
+                    if (cell.size.cy == 0)
+                        cell.size.cy = cell.defaultSize.cy;
+                }
             }
-            if (h == -1)
+
+            _rowsSize.resize(_cells.size());
+            LONG vertFillCount = 0;
+            LONG vertFixedWidth = 0;
+
+            for (size_t i = 0; i < _cells.size(); i++)
             {
-                h = this->h - y - spacing;
+                std::vector<LayouterCell> &row = _cells[i];
+                LONG horzFillCount = 0;
+                LONG horzFixedWith = 0;
+
+                LONG maxHeight = 0;
+
+                for (LayouterCell &cell : row)
+                {
+                    if (cell.size.cx == SIZE_FILL)
+                        horzFillCount++;
+                    else
+                        horzFixedWith += cell.size.cx;
+
+                    if (cell.size.cy == SIZE_FILL || maxHeight == SIZE_FILL)
+                        maxHeight = SIZE_FILL;
+                    else
+                        maxHeight = std::max(maxHeight, cell.size.cy);
+                }
+
+                LONG horzFillWidth = availWidth - horzFixedWith - LONG(row.size() + 1) * spacing;
+                if (horzFillCount > 0)
+                    horzFillWidth /= horzFillCount;
+                LONG x = spacing;
+
+                for (LayouterCell &cell : row)
+                {
+                    cell.pos.x = x;
+                    if (cell.size.cx == SIZE_FILL)
+                        cell.size.cx = horzFillWidth;
+
+                    x += cell.size.cx + spacing;
+                }
+
+                _rowsSize[i] = maxHeight;
+
+                if (maxHeight == SIZE_FILL)
+                    vertFillCount++;
+                else
+                    vertFixedWidth += maxHeight;
             }
-            maxW = std::max(maxW, w);
-            maxH = std::max(maxH, h);
 
-            nextX = x + w;
-            nextY = y + h;
+            LONG vertFillHeight = availHeight - vertFixedWidth - LONG(_cells.size() + 1) * spacing;
+            if (vertFillCount > 0)
+                vertFillHeight /= vertFillCount;
+            LONG y = spacing;
 
-            return {w, h};
+            for (size_t i = 0; i < _cells.size(); i++)
+            {
+                std::vector<LayouterCell> &row = _cells[i];
+                LONG maxHeight = _rowsSize[i];
+
+                if (maxHeight == SIZE_FILL)
+                    maxHeight = vertFillHeight;
+
+                for (LayouterCell &cell : row)
+                {
+                    if (cell.size.cy == SIZE_FILL)
+                        cell.size.cy = maxHeight;
+
+                    LONG offsetY = (maxHeight - cell.size.cy) / 2;
+                    cell.pos.y = y + offsetY;
+                }
+
+                y += maxHeight + spacing;
+            }
         }
     };
 
@@ -546,7 +582,7 @@ namespace UI
                 window->_cmdListeners.emplace(_controlId, commandListener);
         }
     };
-    
+
     /**
      * Kontrol berupa listView
      * Untuk membuat kontrol ini menjadi tabel setel _dwStyle |= LVS_REPORT;
@@ -672,13 +708,13 @@ namespace UI
             SendMessageW(hwnd, SB_SETTEXT, MAKEWPARAM(MAKEWORD(index, 0), 0), reinterpret_cast<LPARAM>(text.c_str()));
         }
     };
-    
+
     /**
      * Mengaktifkan dan menonaktifkan style dari kontrol
      * @param hwnd HWND dari kontrol
      * @param isEx jika true maka style termasuk di dwExStyle dan jika false style termasuk di dwStyle
      * @param add jika true maka menambahkan style jika false maka menghapus style
-     * @param style kode style yang akan ditambahkan 
+     * @param style kode style yang akan ditambahkan
      */
     void ToggleWindowStyle(HWND hwnd, bool isEx, bool add, DWORD style)
     {
@@ -882,15 +918,12 @@ namespace UI
      */
     void LayoutControls(Window *window, bool create)
     {
-        bool firstRow = true;
-        window->layouter.init(window->hwnd);
-
         HDWP hDefer = 0;
 
         if (!create)
         {
             int count = 0;
-            for (const auto &row : window->controls)
+            for (const std::vector<Control *> &row : window->controls)
             {
                 count += window->controls.size();
             }
@@ -898,36 +931,47 @@ namespace UI
             hDefer = BeginDeferWindowPos(count);
         }
 
-        for (const auto &row : window->controls)
+        RECT rect;
+        GetClientRect(window->hwnd, &rect);
+        window->layouter.size.cx = rect.right - rect.left;
+        window->layouter.size.cy = rect.bottom - rect.top;
+
+        window->layouter._cells.resize(window->controls.size());
+
+        for (size_t i = 0; i < window->controls.size(); i++)
         {
-            if (!firstRow)
+            const std::vector<Control *> &row = window->controls[i];
+            std::vector<LayouterCell> &cells = window->layouter._cells[i];
+            cells.resize(row.size());
+
+            for (size_t j = 0; j < row.size(); j++)
             {
-                window->layouter.nextRow();
+                Control *control = row[j];
+                LayouterCell &cell = cells[j];
+                cell.defaultSize = control->GetDefaultSize();
+                cell.size = {control->w, control->h};
             }
-            firstRow = false;
+        }
 
-            bool firstColumn = true;
-            for (Control *control : row)
+        window->layouter.Build();
+
+        for (size_t i = 0; i < window->controls.size(); i++)
+        {
+            const std::vector<Control *> &row = window->controls[i];
+            std::vector<LayouterCell> &cells = window->layouter._cells[i];
+            cells.resize(row.size());
+
+            for (size_t j = 0; j < row.size(); j++)
             {
-                if (!firstColumn)
-                {
-                    window->layouter.nextColumn();
-                }
-                firstColumn = false;
-
-                SIZE defaultSize = control->GetDefaultSize();
-                POINT pos = window->layouter.pos();
-                SIZE size = window->layouter.component(
-                    control->w == 0 ? defaultSize.cx : control->w,
-                    control->h == 0 ? defaultSize.cy : control->h);
-
+                Control *control = row[j];
+                LayouterCell &cell = cells[j];
                 if (create)
                 {
-                    control->Create(window, 0, pos, size);
+                    control->Create(window, 0, cell.pos, cell.size);
                 }
                 else
                 {
-                    control->UpdatePosDefer(hDefer, pos, size);
+                    control->UpdatePosDefer(hDefer, cell.pos, cell.size);
                 }
             }
         }
@@ -945,7 +989,7 @@ namespace UI
 
     /**
      * Fungsi utama yang akan dipanggil saat window mendapatkan pesan
-     * Fungsi ini akan 
+     * Fungsi ini akan
      * - memanggil callback yang tertaut dengan pesan yang sesaui
      * - Jika pesan berupa WM_COMMAND, maka akan memanggil callbak yang tertaut dengan control yang sesaui
      * - Jika pesan berupa WM_NOTIFY, maka akan memanggil callback yang tertantu dengan control dan kode notify yang sesuao
