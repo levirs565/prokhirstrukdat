@@ -117,23 +117,22 @@ namespace TabFindBooksRange
         fromTextBox._dwStyle |= WS_BORDER;
         toTextBox._dwStyle |= WS_BORDER;
 
-        progress.w = -1;
-
         btnFind.text = L"Cari";
         btnFind.commandListener = OnFindClick;
 
         label.text = L"Data belum dimuat";
-        label.w = -1;
 
-        listView.w = -1;
-        listView.h = -1;
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
-        window.controls = {
-            {&fromLabel, &fromTextBox, &toLabel, &toTextBox, &btnFind},
-            {&progress},
-            {&label},
-            {&listView}};
+        window.controlsLayout = {
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &fromLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &fromTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &toLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &toTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnFind)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
 
         UI::LayoutControls(&window, true);
 
@@ -199,21 +198,15 @@ namespace TabAllBooks
     {
         button.text = L"Tampilkan";
         button.commandListener = OnShowClick;
-
-        progress.w = -1;
-
         label.text = L"Data belum dimuat";
-        label.w = -1;
-
-        listView.w = -1;
-        listView.h = -1;
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
-        window.controls = {
-            {&combobox, &button},
-            {&progress},
-            {&label},
-            {&listView}};
+        window.controlsLayout = {
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &combobox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &button)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
         UI::LayoutControls(&window, true);
 
         combobox.AddItem(L"Preorder");
@@ -299,11 +292,8 @@ namespace MainWindow
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
-        tabs.w = -1;
-        tabs.h = -1;
-
-        window.controls = {
-            {&tabs}};
+        window.controlsLayout = {
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &tabs)}};
         window.layouter.paddingBottom = 20;
         UI::LayoutControls(&window, true);
 
