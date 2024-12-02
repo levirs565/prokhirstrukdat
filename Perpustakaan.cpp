@@ -92,7 +92,7 @@ namespace TabFindBooksRange
         }
 
         std::wstringstream stream;
-        stream << "Data ditemukan dalam dalam " << timer.durationMs() << "ms";
+        stream << "Data ditemukan dalam dalam " << timer.durationStr();
         label.SetText(stream.str().c_str());
         progress.SetWaiting(false);
         btnFind.SetEnable(true);
@@ -178,7 +178,7 @@ namespace TabAllBooks
         }
 
         std::wstringstream stream;
-        stream << "Data dimuat dalam " << timer.durationMs() << "ms";
+        stream << "Data dimuat dalam " << timer.durationStr();
         label.SetText(stream.str().c_str());
         button.SetEnable(false);
     }
@@ -265,7 +265,7 @@ namespace MainWindow
         progressBar.SetWaiting(false);
 
         std::wstringstream stream;
-        stream << L"Data dimuat dari CSV dalam " << timer.durationMs() << L"ms";
+        stream << L"Data dimuat dari CSV dalam " << timer.durationStr();
         statusBar.SetText(1, stream.str());
 
         // size_t maxPsl = 0;
@@ -298,7 +298,7 @@ namespace MainWindow
         UI::LayoutControls(&window, true);
 
         statusBar.Create(&window);
-        statusBar.SetParts({118, 200, 200, 200});
+        statusBar.SetParts({118, 300, 300, 300});
 
         progressBar.Create(&window, statusBar.hwnd, {9, 2}, {100, 19});
 
