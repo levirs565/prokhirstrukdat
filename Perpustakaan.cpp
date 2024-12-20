@@ -120,7 +120,6 @@ namespace AddWindow
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &btnAdd)}};
 
-
         UI::LayoutControls(&window, true);
 
         return 0;
@@ -279,6 +278,7 @@ namespace TabAllBooks
 
     void DoShow()
     {
+        std::wstring type = combobox.GetSelectedText();
         listView.DeleteAllRows();
         label.SetText(L"Memuat data");
         Timer timer;
@@ -286,12 +286,19 @@ namespace TabAllBooks
         {
             timer.start();
             size_t current = 0;
-            tree.inorder(tree.root, [&](RBNode<Book> *node)
-                         {
-            size_t index = listView.InsertRow(node->value.isbn);
-            listView.SetText(index, 1, node->value.title); 
-            current++;
-            progress.SetProgress(static_cast<int>(current * 100.0 / tree.count)); });
+            std::function<void(RBNode<Book> *)> visitor = [&](RBNode<Book> *node)
+            {
+                size_t index = listView.InsertRow(node->value.isbn);
+                listView.SetText(index, 1, node->value.title);
+                current++;
+                progress.SetProgress(static_cast<int>(current * 100.0 / tree.count));
+            };
+            if (type == L"In-order")
+                tree.inorder(tree.root, visitor);
+            else if (type == L"Pre-order")
+                tree.preorder(tree.root, visitor);
+            else if (type == L"Post-order")
+                tree.postorder(tree.root, visitor);
             timer.end();
         }
 
@@ -312,7 +319,8 @@ namespace TabAllBooks
         return 0;
     }
 
-    LRESULT OnDeleteClick(UI::CallbackParam param) {
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
         RemoveByListViewSelection(listView);
         return 0;
     }
@@ -342,9 +350,9 @@ namespace TabAllBooks
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
 
-        combobox.AddItem(L"PreOrder");
-        combobox.AddItem(L"InOrder");
-        combobox.AddItem(L"PostOrder");
+        combobox.AddItem(L"Pre-order");
+        combobox.AddItem(L"In-order");
+        combobox.AddItem(L"Post-order");
         combobox.SetSelectedIndex(1);
 
         listView.InsertColumn(L"ISBN", 100);
