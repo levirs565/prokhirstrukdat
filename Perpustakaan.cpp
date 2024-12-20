@@ -286,25 +286,44 @@ namespace TabAllBooks
     UI::ProgressBar progress;
     UI::Label label;
     UI::Label labelk;
-    UI::ListView listView;
+    UI::VListView listView;
     std::thread showThread;
+    std::vector<Book*> booksList;
+
+    wchar_t* OnGetItem(int row, int column) {
+        Book* book = booksList[row];
+        if (column == 0)
+            return const_cast<wchar_t*>(book->isbn.c_str());
+        else if (column == 1)
+            return const_cast<wchar_t*>(book->title.c_str());
+        else if (column == 2)
+            return const_cast<wchar_t*>(book->author.c_str());
+        else if (column == 3)
+            return const_cast<wchar_t*>(book->publisher.c_str());
+        else if (column == 4)
+            return const_cast<wchar_t*>(book->year.c_str());
+        return nullptr;
+    }
 
     void DoShow()
     {
         std::wstring type = combobox.GetSelectedText();
-        listView.DeleteAllRows();
+
+        booksList.resize(tree.count);
+        listView.SetRowCount(0);
+        
         label.SetText(L"Memuat data");
         Timer timer;
+
+        progress.SetWaiting(true);
 
         {
             timer.start();
             size_t current = 0;
             std::function<void(RBNode<Book> *)> visitor = [&](RBNode<Book> *node)
             {
-                size_t index = listView.InsertRow(node->value.isbn);
-                listView.SetText(index, 1, node->value.title);
+                booksList[current] = &node->value;
                 current++;
-                progress.SetProgress(static_cast<int>(current * 100.0 / tree.count));
             };
             if (type == L"In-order")
                 tree.inorder(tree.root, visitor);
@@ -315,10 +334,14 @@ namespace TabAllBooks
             timer.end();
         }
 
+        progress.SetWaiting(false);
+        listView.SetRowCount(booksList.size());
+
         std::wstringstream stream;
         stream << "Data dimuat dalam " << timer.durationStr();
         label.SetText(stream.str().c_str());
-        button.SetEnable(false);
+        
+        button.SetEnable(true);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
@@ -344,6 +367,7 @@ namespace TabAllBooks
         button.commandListener = OnShowClick;
         label.SetText(L"Data belum dimuat");
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
+        listView.itemGetter = OnGetItem;
 
         labelk.SetText(L" ");
 
@@ -370,6 +394,9 @@ namespace TabAllBooks
 
         listView.InsertColumn(L"ISBN", 100);
         listView.InsertColumn(L"Judul Buku", 200);
+        listView.InsertColumn(L"Penulis", 200);
+        listView.InsertColumn(L"Penerbit", 200);
+        listView.InsertColumn(L"Year", 100);
 
         return 0;
     }

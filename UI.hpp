@@ -13,6 +13,9 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cassert>
+#include <numeric>
+#include <limits>
+#include <stdexcept>
 
 namespace UI
 {
@@ -725,6 +728,60 @@ namespace UI
 
         void RemoveRow(int row) {
             ListView_DeleteItem(hwnd, row);
+        }
+    };
+
+    struct VListView : ListView {
+        size_t _columnCount = 0;
+        std::function<wchar_t*(int, int)> itemGetter;
+
+        void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
+        {
+            _dwStyle |= LVS_OWNERDATA;
+
+            ListView::Create(window, hParent, pos, size);
+
+            window->_notifyListeners.emplace(
+                std::make_pair(_controlId, LVN_GETDISPINFOW),
+                std::bind(&VListView::_OnLVNGetDispInfo, this, std::placeholders::_1)
+            );
+            _columnCount = 0;
+        }
+
+        LRESULT _OnLVNGetDispInfo(UI::CallbackParam param) {
+            NMLVDISPINFOW* info = reinterpret_cast<NMLVDISPINFOW*>(param.lParam); 
+
+            // if (info->item.mask & LVIF_STATE) {
+                // info->item.state |= LVIS_
+            // }
+            if (info->item.mask & LVIF_TEXT) {
+                if (info->item.iSubItem < _columnCount) {
+                    info->item.pszText = itemGetter(info->item.iItem, info->item.iSubItem);
+                }
+            }
+
+            return 0;
+        }
+
+        void InsertColumn(const std::wstring &title, int width) {
+            _columnCount++;
+            ListView::InsertColumn(title, width);     
+        }
+
+        void DeleteAllRows() {
+            throw std::invalid_argument("Cannot use DeleteAllRows in VListView");
+        }
+
+        void RemoveRow() {
+            throw std::invalid_argument("Cannot use RemoveRow in VListView");
+        }
+
+        int InsertRow(const std::wstring &text) {
+            throw std::invalid_argument("Cannot use InsertRow in VListView");
+        }
+
+        void SetRowCount(size_t count) {
+            ListView_SetItemCount(hwnd, static_cast<int>(count));
         }
     };
 
