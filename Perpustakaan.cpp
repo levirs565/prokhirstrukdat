@@ -145,7 +145,6 @@ LRESULT OnAddClick(UI::CallbackParam param)
 
 void RemoveByListViewSelection(UI::ListView &listView)
 {
-    size_t shift = 0;
     for (int v : listView.GetSelectedIndex())
     {
         std::wstring isbn = listView.GetText(v, 0);
@@ -155,9 +154,6 @@ void RemoveByListViewSelection(UI::ListView &listView)
 
         if (!hashTable.remove(isbn))
             std::cout << "Penghapusan di RobinHoodHashTable gagal" << std::endl;
-
-        listView.RemoveRow(v - shift);
-        shift++;
     }
 }
 
@@ -175,7 +171,7 @@ namespace TabFindBooksRange
     UI::ListView listView;
     std::thread findThread;
 
-    void DoFind()
+    void DoRefresh()
     {
         listView.DeleteAllRows();
         label.SetText(L"Menemukan data");
@@ -199,20 +195,26 @@ namespace TabFindBooksRange
         btnFind.SetEnable(true);
     }
 
-    LRESULT OnFindClick(UI::CallbackParam param)
-    {
+    void RefreshList() {
         btnFind.SetEnable(false);
         if (findThread.joinable())
         {
             findThread.join();
         }
-        findThread = std::thread(DoFind);
+        findThread = std::thread(DoRefresh);
+        
+    }
+
+    LRESULT OnFindClick(UI::CallbackParam param)
+    {
+        RefreshList();
         return 0;
     }
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
         RemoveByListViewSelection(listView);
+        RefreshList();
         return 0;
     }
 
@@ -295,7 +297,7 @@ namespace TabAllBooks
         return nullptr;
     }
 
-    void DoShow()
+    void DoRefresh()
     {
         std::wstring type = combobox.GetSelectedText();
 
@@ -334,20 +336,25 @@ namespace TabAllBooks
         button.SetEnable(true);
     }
 
-    LRESULT OnShowClick(UI::CallbackParam param)
-    {
+    void RefreshList() {
         button.SetEnable(false);
         if (showThread.joinable())
         {
             showThread.join();
         }
-        showThread = std::thread(DoShow);
+        showThread = std::thread(DoRefresh);
+    }
+
+    LRESULT OnShowClick(UI::CallbackParam param)
+    {
+        RefreshList();
         return 0;
     }
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
         RemoveByListViewSelection(listView);
+        RefreshList();
         return 0;
     }
 
@@ -365,6 +372,7 @@ namespace TabAllBooks
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus Buku");
+        btnDelete.commandListener = OnDeleteClick;
 
         window.controlsLayout = {
             {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
