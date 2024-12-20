@@ -95,6 +95,7 @@ namespace AddWindow
         tree.insert(std::move(book));
 
         MessageBoxW(window.hwnd,L"Buku Telah berhasil Ditambahkan",L"Success", MB_OK);
+        DestroyWindow(window.hwnd);
         return 0;
     }
 
@@ -182,25 +183,46 @@ namespace TabFindBooksRange
     UI::ProgressBar progress;
     UI::Label label;
     UI::Label labelk;
-    UI::ListView listView;
+    UI::VListView listView;
     std::thread findThread;
+    std::vector<Book*> booksList;
+
+    wchar_t* OnGetItem(int row, int column) {
+        Book* book = booksList[row];
+        if (column == 0)
+            return const_cast<wchar_t*>(book->isbn.c_str());
+        else if (column == 1)
+            return const_cast<wchar_t*>(book->title.c_str());
+        else if (column == 2)
+            return const_cast<wchar_t*>(book->author.c_str());
+        else if (column == 3)
+            return const_cast<wchar_t*>(book->publisher.c_str());
+        else if (column == 4)
+            return const_cast<wchar_t*>(book->year.c_str());
+        return nullptr;
+    }
 
     void DoFind()
     {
-        listView.DeleteAllRows();
+        booksList.clear();
+        listView.SetRowCount(0);
+
         label.SetText(L"Menemukan data");
         Timer timer;
+
         progress.SetWaiting(true);
 
         {
             timer.start();
             tree.findBetween(Book{L".", fromTextBox.getText()}, {L":", toTextBox.getText()}, [&](RBNode<Book> *node)
                              {
-            size_t index = listView.InsertRow(node->value.isbn);
-            listView.SetText(index, 1, node->value.title); });
-
+            booksList.push_back(&node->value);
+            });
             timer.end();
         }
+
+        progress.SetWaiting(false);
+        listView.SetRowCount(booksList.size());
 
         std::wstringstream stream;
         stream << "Data ditemukan dalam dalam " << timer.durationStr();
@@ -241,6 +263,7 @@ namespace TabFindBooksRange
         labelk.SetText(L" ");
 
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
+        listView.itemGetter = OnGetItem;
 
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
@@ -265,6 +288,9 @@ namespace TabFindBooksRange
 
         listView.InsertColumn(L"ISBN", 100);
         listView.InsertColumn(L"Judul", 200);
+        listView.InsertColumn(L"Penulis", 100);
+        listView.InsertColumn(L"Penerbit", 100);
+        listView.InsertColumn(L"Tahun", 100);
 
         return 0;
     }
@@ -417,6 +443,9 @@ namespace TabDetailsBooks
     UI::TextBox ISBNTextBox;
     UI::StatusBar statusBar;
     UI::ListView listView;
+    UI::Label labelk;
+     UI::Button btnAdd;
+    UI::Button btnDelete;
 
     void DoFind()
     {
@@ -461,6 +490,13 @@ namespace TabDetailsBooks
 
         label.SetText(L"Data Belum Dimuat");
 
+        labelk.SetText(L" ");
+
+        btnAdd.SetText(L"Tambahkan Buku");
+        btnAdd.commandListener = OnAddClick;
+
+        btnDelete.SetText(L"Hapus Buku");
+
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
         window.controlsLayout = {
@@ -468,7 +504,11 @@ namespace TabDetailsBooks
              UI::ControlCell(100, UI::SIZE_DEFAULT, &ISBNTextBox),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnSearch)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label),
+            UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
 
         listView.InsertColumn(L"Prop", 100);
