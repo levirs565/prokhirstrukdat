@@ -15,6 +15,9 @@ struct Book
 {
     std::wstring isbn;
     std::wstring title;
+    std::wstring author;
+    std::wstring publisher;
+    std::wstring year;
 };
 
 bool BookTitleCompare(const Book &a, const Book &b)
@@ -388,7 +391,9 @@ namespace TabDetailsBooks
             {
                 listView.SetText(0, 1, buku->isbn);
                 listView.SetText(1, 1, buku->title);
-                // KURENG SIKIT
+                listView.SetText(2, 1, buku->author);
+                listView.SetText(3, 1, buku->publisher);
+                listView.SetText(4, 1, buku->year);
             }
         }
         btnSearch.SetEnable(true);
@@ -422,7 +427,7 @@ namespace TabDetailsBooks
         UI::LayoutControls(&window, true);
 
         listView.InsertColumn(L"Prop", 100);
-        listView.InsertRow(L"ISBN              :");
+        listView.InsertRow(L"ISBN               :");
         listView.InsertRow(L"Judul Buku        :");
         listView.InsertRow(L"Penulis Buku      :");
         listView.InsertRow(L"Tahun Terbit     :");
@@ -524,12 +529,18 @@ namespace MainWindow
 
             int isbnIndex = reader.findHeaderIndex("ISBN");
             int titleIndex = reader.findHeaderIndex("Book-Title");
+            int authorIndex = reader.findHeaderIndex("Book-Author");
+            int publisherIndex = reader.findHeaderIndex("Publisher");
+            int yearIndex= reader.findHeaderIndex("Year-Of-Publication");
 
             while (reader.readData())
             {
                 Book book{
                     Utils::stringviewToWstring(reader.data[isbnIndex]),
-                    Utils::stringviewToWstring(reader.data[titleIndex])};
+                    Utils::stringviewToWstring(reader.data[titleIndex]),
+                    Utils::stringviewToWstring(reader.data[authorIndex]),
+                    Utils::stringviewToWstring(reader.data[publisherIndex]),
+                    Utils::stringviewToWstring(reader.data[yearIndex])};
                 hashTable.put(book.isbn, book);
                 // hashTable.insert(std::make_pair(book.isbn, book));
                 tree.insert(std::move(book));
