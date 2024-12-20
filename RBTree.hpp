@@ -87,7 +87,7 @@ struct RBTree
     {
         NodeType *current = root;
 
-        while (current != nil && current->value != value)
+        while (current != nil && (isLess(current->value, value) || isLess(value, current->value)))
         {
             if (isLess(value, current->value))
             {

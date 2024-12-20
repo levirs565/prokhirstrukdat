@@ -81,6 +81,10 @@ namespace AddWindow
     UI::TextBox penerbitTextBox;
     UI::Button btnAdd;
 
+    LRESULT OnAddClick(UI::CallbackParam param) {
+        return 0;
+    }
+
     LRESULT OnCreate(UI::CallbackParam param)
     {
         label.SetText(L"Masukkan Data Buku!");
@@ -98,23 +102,26 @@ namespace AddWindow
         penerbitTextBox._dwStyle |= WS_BORDER;
 
         btnAdd.SetText(L"Tambahkan Buku");
+        btnAdd.commandListener = OnAddClick;
 
         window.controlsLayout = {
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &label)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &labelk)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &isbn)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &isbnTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &judul)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &judulTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &penulis)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &penulisTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &tahun)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &tahunTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &penerbit)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &penerbitTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &labelk)},
-            {UI::ControlCell(UI::SIZE_FILL,UI::SIZE_DEFAULT, &btnAdd)}};
-        UI::LayoutControls(&window,true);
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &isbn)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &isbnTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &judul)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &judulTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penulis)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penulisTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &tahun)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &tahunTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbit)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbitTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &btnAdd)}};
+
+
+        UI::LayoutControls(&window, true);
 
         return 0;
     }
@@ -128,12 +135,30 @@ namespace AddWindow
     }
 }
 
+LRESULT OnAddClick(UI::CallbackParam param)
+{
+    AddWindow::Show();
+    return 0;
+}
 
-    LRESULT OnAddClick(UI::CallbackParam param)
+void RemoveByListViewSelection(UI::ListView &listView)
+{
+    size_t shift = 0;
+    for (int v : listView.GetSelectedIndex())
     {
-        AddWindow::Show();
-        return 0;
+        std::wstring isbn = listView.GetText(v, 0);
+        Book *buku = hashTable.get(isbn);
+        if (!tree.remove(*buku))
+            std::cout << "Penghapusan di RBTree gagal" << std::endl;
+
+        if (!hashTable.remove(isbn))
+            std::cout << "Penghapusan di RobinHoodHashTable gagal" << std::endl;
+
+        listView.RemoveRow(v - shift);
+        shift++;
     }
+}
+
 namespace TabFindBooksRange
 {
     UI::Window window;
@@ -183,6 +208,12 @@ namespace TabFindBooksRange
         return 0;
     }
 
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        RemoveByListViewSelection(listView);
+        return 0;
+    }
+
     LRESULT OnCreate(UI::CallbackParam param)
     {
         fromLabel.SetText(L"Dari");
@@ -203,6 +234,7 @@ namespace TabFindBooksRange
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus Buku");
+        btnDelete.commandListener = OnDeleteClick;
 
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &fromLabel),
@@ -280,13 +312,18 @@ namespace TabAllBooks
         return 0;
     }
 
+    LRESULT OnDeleteClick(UI::CallbackParam param) {
+        RemoveByListViewSelection(listView);
+        return 0;
+    }
+
     LRESULT OnCreate(UI::CallbackParam param)
     {
         button.SetText(L"Tampilkan");
         button.commandListener = OnShowClick;
         label.SetText(L"Data belum dimuat");
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
-        
+
         labelk.SetText(L" ");
 
         btnAdd.SetText(L"Tambahkan Buku");
@@ -323,16 +360,16 @@ namespace TabAllBooks
     }
 }
 
-namespace TabDetailsBooks{
-    UI::Window window ; 
+namespace TabDetailsBooks
+{
+    UI::Window window;
     UI::Label label;
     UI::Label ISBNlabel;
     UI::Button btnSearch;
     UI::TextBox ISBNTextBox;
     UI::StatusBar statusBar;
     UI::ListView listView;
-    
-    
+
     void DoFind()
     {
         label.SetText(L"Mencari buku sesuai dengan ISBN");
@@ -341,20 +378,24 @@ namespace TabDetailsBooks{
         {
             std::wstring isbn = ISBNTextBox.getText();
             timer.start();
-            Book* buku = hashTable.get(isbn);
+            Book *buku = hashTable.get(isbn);
             timer.end();
-            if (buku == nullptr){
+            if (buku == nullptr)
+            {
                 label.SetText(L"TIdak DiTemukan");
-            }else{
-                listView.SetText(0,1, buku->isbn);
-                listView.SetText(1,1, buku->title);
-                //KURENG SIKIT
+            }
+            else
+            {
+                listView.SetText(0, 1, buku->isbn);
+                listView.SetText(1, 1, buku->title);
+                // KURENG SIKIT
             }
         }
         btnSearch.SetEnable(true);
     }
 
-    LRESULT OnFindClick(UI::CallbackParam){
+    LRESULT OnFindClick(UI::CallbackParam)
+    {
         btnSearch.SetEnable(false);
         DoFind();
         return 0;
@@ -386,8 +427,8 @@ namespace TabDetailsBooks{
         listView.InsertRow(L"Penulis Buku      :");
         listView.InsertRow(L"Tahun Terbit     :");
         listView.InsertRow(L"Penerbit Buku  :");
-        listView.InsertColumn (L"Value", 200);
-        
+        listView.InsertColumn(L"Value", 200);
+
         return 0;
     }
 
@@ -398,7 +439,8 @@ namespace TabDetailsBooks{
     }
 }
 
-namespace TabHistoryDelete{
+namespace TabHistoryDelete
+{
     UI::Window window;
     UI::Label label;
     UI::ComboBox combobox;
@@ -412,7 +454,7 @@ namespace TabHistoryDelete{
     LRESULT OnShowClick(UI::CallbackParam param)
     {
         btnTampil.SetEnable(false);
-        if(showThread.joinable())
+        if (showThread.joinable())
         {
             showThread.join();
         }
@@ -446,17 +488,16 @@ namespace TabHistoryDelete{
         combobox.SetSelectedIndex(1);
 
         listView.InsertColumn(L"ISBN", 100);
-        listView.InsertColumn(L"Judul Buku", 200); 
+        listView.InsertColumn(L"Judul Buku", 200);
 
-        return 0; 
+        return 0;
     }
 
-    void Init ()
+    void Init()
     {
         window.title = L"TabHistoryDelete";
         window.registerMessageListener(WM_CREATE, OnCreate);
     }
-
 
 }
 

@@ -686,6 +686,46 @@ namespace UI
             assert(hwnd != 0);
             ListView_SetItemText(hwnd, row, column, const_cast<wchar_t *>(text.c_str()));
         }
+
+        std::vector<int> GetSelectedIndex()
+        {
+            int iPos = ListView_GetNextItem(hwnd, -1, LVNI_SELECTED);
+            std::vector<int> res;
+            while (iPos != -1)
+            {
+                res.push_back(iPos);
+                iPos = ListView_GetNextItem(hwnd, iPos, LVNI_SELECTED);
+            }
+
+            return res;
+        }
+
+        std::wstring GetText(int row, int column)
+        {
+            LVITEMW lvi = {};
+            lvi.iItem = row;
+            lvi.iSubItem = column;
+
+            std::wstring buffer(64, 0);
+            int bufferSize = 0;
+            int charsWrittenWithoutNull = 0;
+            do
+            {
+                bufferSize += 64;
+                buffer.resize(bufferSize);
+                lvi.cchTextMax = bufferSize;
+                lvi.pszText = &buffer[0];
+                charsWrittenWithoutNull = static_cast<int>(
+                    SendMessageW(hwnd, LVM_GETITEMTEXTW, row, reinterpret_cast<LPARAM>(&lvi)));
+            } while (charsWrittenWithoutNull == bufferSize - 1);
+
+            buffer.resize(lstrlenW(buffer.c_str()));
+            return buffer;
+        }
+
+        void RemoveRow(int row) {
+            ListView_DeleteItem(hwnd, row);
+        }
     };
 
     /**
