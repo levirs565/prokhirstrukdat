@@ -66,6 +66,8 @@ RBTree<Book, decltype(&BookTitleCompare)> tree(BookTitleCompare);
 RobinHoodHashMap<std::wstring, Book, decltype(&BookHash)> hashTable(BookHash);
 // std::unordered_map<std::wstring, Book> hashTable;
 
+void RefreshAllList();
+
 namespace AddWindow
 {
     UI::Window window;
@@ -91,11 +93,20 @@ namespace AddWindow
             penulisTextBox.getText(),
             penerbitTextBox.getText(),
             tahunTextBox.getText()};
+
+        if (hashTable.get(book.isbn) != nullptr) {
+            MessageBoxW(window.hwnd, L"Buku dengan ISBN sama telah ada", L"Gagal", MB_OK);
+            return 0;
+        }
+
         hashTable.put(book.isbn, book);
         tree.insert(std::move(book));
 
         MessageBoxW(window.hwnd,L"Buku Telah berhasil Ditambahkan",L"Success", MB_OK);
-        DestroyWindow(window.hwnd);
+        window.Destroy();
+
+        RefreshAllList();
+
         return 0;
     }
 
@@ -166,6 +177,8 @@ void RemoveByListViewSelection(UI::ListView &listView)
         if (!hashTable.remove(isbn))
             std::cout << "Penghapusan di RobinHoodHashTable gagal" << std::endl;
     }
+
+    RefreshAllList();
 }
 
 namespace TabFindBooksRange
@@ -246,7 +259,6 @@ namespace TabFindBooksRange
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
         RemoveByListViewSelection(listView);
-        RefreshList();
         return 0;
     }
 
@@ -390,7 +402,6 @@ namespace TabAllBooks
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
         RemoveByListViewSelection(listView);
-        RefreshList();
         return 0;
     }
 
@@ -707,6 +718,11 @@ namespace MainWindow
         window.registerMessageListener(WM_CREATE, OnCreate);
         UI::ShowWindowClass(window);
     }
+}
+
+void RefreshAllList() {
+    TabAllBooks::RefreshList();
+    TabFindBooksRange::RefreshList();
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)
