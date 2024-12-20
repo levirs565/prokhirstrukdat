@@ -85,6 +85,16 @@ namespace AddWindow
     UI::Button btnAdd;
 
     LRESULT OnAddClick(UI::CallbackParam param) {
+        Book book{
+            isbnTextBox.getText(),
+            judulTextBox.getText(),
+            penulisTextBox.getText(),
+            penerbitTextBox.getText(),
+            tahunTextBox.getText()};
+        hashTable.put(book.isbn, book);
+        tree.insert(std::move(book));
+
+        MessageBoxW(window.hwnd,L"Buku Telah berhasil Ditambahkan",L"Success", MB_OK);
         return 0;
     }
 
@@ -393,7 +403,7 @@ namespace TabDetailsBooks
             timer.end();
             if (buku == nullptr)
             {
-                label.SetText(L"TIdak DiTemukan");
+                label.SetText(L"TIdak Di Temukan");
             }
             else
             {
@@ -428,7 +438,7 @@ namespace TabDetailsBooks
 
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &ISBNlabel),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &ISBNTextBox),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &ISBNTextBox),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnSearch)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
