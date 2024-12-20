@@ -286,6 +286,12 @@ namespace TabAllBooks
             return const_cast<wchar_t*>(book->isbn.c_str());
         else if (column == 1)
             return const_cast<wchar_t*>(book->title.c_str());
+        else if (column == 2)
+            return const_cast<wchar_t*>(book->author.c_str());
+        else if (column == 3)
+            return const_cast<wchar_t*>(book->publisher.c_str());
+        else if (column == 4)
+            return const_cast<wchar_t*>(book->year.c_str());
         return nullptr;
     }
 
@@ -324,7 +330,8 @@ namespace TabAllBooks
         std::wstringstream stream;
         stream << "Data dimuat dalam " << timer.durationStr();
         label.SetText(stream.str().c_str());
-        button.SetEnable(false);
+        
+        button.SetEnable(true);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
@@ -377,6 +384,9 @@ namespace TabAllBooks
 
         listView.InsertColumn(L"ISBN", 100);
         listView.InsertColumn(L"Judul Buku", 200);
+        listView.InsertColumn(L"Penulis", 200);
+        listView.InsertColumn(L"Penerbit", 200);
+        listView.InsertColumn(L"Year", 100);
 
         return 0;
     }
