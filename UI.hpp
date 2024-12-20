@@ -405,6 +405,11 @@ namespace UI
 
             _ClearWindowControls(this);
         }
+
+        void Destroy() 
+        {
+            DestroyWindow(hwnd);
+        }
     };
 
     HWND CreateWindowClass(Window &data);
