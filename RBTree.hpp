@@ -306,6 +306,27 @@ struct RBTree
         inorder(node->right, visit);
     }
 
+    void preorder(NodeType *node, const std::function<void(NodeType*)> &visit)
+    {
+        if (node == nil) {
+            return;
+        }
+        visit(node);
+        preorder(node->left, visit);
+        preorder(node->right, visit);
+    }
+
+    void postorder(NodeType *node, const std::function<void(NodeType*)> &visit)
+    {
+        if (node == nil) {
+            return;
+        }
+
+        postorder(node->left, visit);
+        postorder(node->right, visit);
+        visit(node);
+    }
+
     int maxLevel(NodeType *node, int current)
     {
         if (node == nil)
