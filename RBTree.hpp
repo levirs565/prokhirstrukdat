@@ -77,10 +77,9 @@ struct RBTree
             {
                 y->right = z;
             }
-
-            count++;
             insertFixUp(z);
         }
+        count++;
     }
 
     NodeType *findNode(const T &value)

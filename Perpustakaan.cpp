@@ -64,6 +64,7 @@ uint64_t BookHash(const std::wstring &wstr)
 
 RBTree<Book, decltype(&BookTitleCompare)> tree(BookTitleCompare);
 RobinHoodHashMap<std::wstring, Book, decltype(&BookHash)> hashTable(BookHash);
+RBTree<Book, decltype(&BookTitleCompare)> removeHistoryTree(BookTitleCompare);
 // std::unordered_map<std::wstring, Book> hashTable;
 
 void RefreshAllList();
@@ -159,6 +160,126 @@ namespace AddWindow
     }
 }
 
+namespace TabHistoryDelete
+{
+    UI::Window window;
+    UI::Label label;
+    UI::ComboBox combobox;
+    UI::Button btnRestore;
+    UI::Button btnTampil;
+    UI::Label labelk;
+    UI::ProgressBar progress;
+    UI::VListView listView;
+    std::thread showThread;
+    std::vector<Book*> booksList;
+
+    wchar_t* OnGetItem(int row, int column) {
+        Book* book = booksList[row];
+        if (column == 0)
+            return const_cast<wchar_t*>(book->isbn.c_str());
+        else if (column == 1)
+            return const_cast<wchar_t*>(book->title.c_str());
+        else if (column == 2)
+            return const_cast<wchar_t*>(book->author.c_str());
+        else if (column == 3)
+            return const_cast<wchar_t*>(book->publisher.c_str());
+        else if (column == 4)
+            return const_cast<wchar_t*>(book->year.c_str());
+        return nullptr;
+    }
+    
+    void DoRefresh() {
+        std::wstring type = combobox.GetSelectedText();
+        booksList.resize(removeHistoryTree.count);
+        listView.SetRowCount(0);
+        Timer timer;
+        progress.SetWaiting(true);
+
+        {
+            timer.start();
+
+            size_t current = 0;
+            std::function<void(RBNode<Book>*)> visitor = [&](RBNode<Book>* node) {
+                booksList[current] = &node->value;
+                current++;
+            };
+
+            if (type == L"Pre-order")
+                removeHistoryTree.preorder(removeHistoryTree.root, visitor);
+            else if (type == L"In-order")
+                removeHistoryTree.inorder(removeHistoryTree.root, visitor);
+            else if (type == L"Post-order")
+                removeHistoryTree.postorder(removeHistoryTree.root, visitor);
+
+            timer.end();
+        }
+
+        progress.SetWaiting(false);
+        listView.SetRowCount(removeHistoryTree.count);
+
+        std::wstringstream stream;
+        stream << "Data dimuat dalam " << timer.durationStr();
+        label.SetText(stream.str());
+
+        btnTampil.SetEnable(true);
+    }
+
+    void RefreshList() {
+        btnTampil.SetEnable(false);
+        if (showThread.joinable())
+        {
+            showThread.join();
+        }
+        showThread = std::thread(DoRefresh);
+    }
+
+    LRESULT OnShowClick(UI::CallbackParam param)
+    {
+        RefreshList();
+        return 0;
+    }
+
+    LRESULT OnCreate(UI::CallbackParam param)
+    {
+        btnTampil.SetText(L"Tampilkan");
+        btnTampil.commandListener = OnShowClick;
+
+        label.SetText(L"Data Belum Dimuat");
+        labelk.SetText(L" ");
+        btnRestore.SetText(L"Restore");
+
+        listView._dwStyle |= LVS_REPORT | WS_BORDER;
+        listView.itemGetter = OnGetItem;
+
+        window.controlsLayout = {
+            {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnTampil)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnRestore)}};
+
+        UI::LayoutControls(&window, true);
+
+        combobox.AddItem(L"Pre-order");
+        combobox.AddItem(L"In-order");
+        combobox.AddItem(L"Post-order");
+        combobox.SetSelectedIndex(1);
+
+        listView.InsertColumn(L"ISBN", 100);
+        listView.InsertColumn(L"Judul Buku", 200);
+
+        return 0;
+    }
+
+    void Init()
+    {
+        window.title = L"TabHistoryDelete";
+        window.registerMessageListener(WM_CREATE, OnCreate);
+    }
+}
+
 LRESULT OnAddClick(UI::CallbackParam param)
 {
     AddWindow::Show();
@@ -171,14 +292,18 @@ void RemoveByListViewSelection(UI::ListView &listView)
     {
         std::wstring isbn = listView.GetText(v, 0);
         Book *buku = hashTable.get(isbn);
+        Book duplicatedBook = *buku;
         if (!tree.remove(*buku))
             std::cout << "Penghapusan di RBTree gagal" << std::endl;
 
         if (!hashTable.remove(isbn))
             std::cout << "Penghapusan di RobinHoodHashTable gagal" << std::endl;
+
+        removeHistoryTree.insert(std::move(duplicatedBook));
     }
 
     RefreshAllList();
+    TabHistoryDelete::RefreshList();
 }
 
 namespace TabFindBooksRange
@@ -546,68 +671,6 @@ namespace TabDetailsBooks
         window.title = L"DetailsBooks";
         window.registerMessageListener(WM_CREATE, onCreate);
     }
-}
-
-namespace TabHistoryDelete
-{
-    UI::Window window;
-    UI::Label label;
-    UI::ComboBox combobox;
-    UI::Button btnRestore;
-    UI::Button btnTampil;
-    UI::Label labelk;
-    UI::ProgressBar progress;
-    UI::ListView listView;
-    std::thread showThread;
-
-    LRESULT OnShowClick(UI::CallbackParam param)
-    {
-        btnTampil.SetEnable(false);
-        if (showThread.joinable())
-        {
-            showThread.join();
-        }
-        // showThread = std::thread(DoShow);
-        return 0;
-    }
-
-    LRESULT OnCreate(UI::CallbackParam param)
-    {
-        btnTampil.SetText(L"Tampilkan");
-        label.SetText(L"Data Belum Dimuat");
-        labelk.SetText(L" ");
-        btnRestore.SetText(L"Restore");
-
-        listView._dwStyle |= LVS_REPORT | WS_BORDER;
-
-        window.controlsLayout = {
-            {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnTampil)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
-             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnRestore)}};
-
-        UI::LayoutControls(&window, true);
-
-        combobox.AddItem(L"PreOrder");
-        combobox.AddItem(L"InOrder");
-        combobox.AddItem(L"PostOrder");
-        combobox.SetSelectedIndex(1);
-
-        listView.InsertColumn(L"ISBN", 100);
-        listView.InsertColumn(L"Judul Buku", 200);
-
-        return 0;
-    }
-
-    void Init()
-    {
-        window.title = L"TabHistoryDelete";
-        window.registerMessageListener(WM_CREATE, OnCreate);
-    }
-
 }
 
 namespace MainWindow
