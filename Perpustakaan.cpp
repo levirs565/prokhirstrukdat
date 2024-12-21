@@ -87,7 +87,8 @@ namespace AddWindow
     UI::TextBox penerbitTextBox;
     UI::Button btnAdd;
 
-    LRESULT OnAddClick(UI::CallbackParam param) {
+    LRESULT OnAddClick(UI::CallbackParam param)
+    {
         Book book{
             isbnTextBox.getText(),
             judulTextBox.getText(),
@@ -95,15 +96,97 @@ namespace AddWindow
             penerbitTextBox.getText(),
             tahunTextBox.getText()};
 
-        if (hashTable.get(book.isbn) != nullptr) {
-            MessageBoxW(window.hwnd, L"Buku dengan ISBN sama telah ada", L"Gagal", MB_OK);
+        book.year.erase(book.year.find_last_not_of(' ') + 1);
+        book.year.erase(0, book.year.find_first_not_of(' '));
+
+        try
+        {
+        if (book.isbn.size() == 0)
+            {
+                throw std::domain_error("ISBN Tidak Boleh Kosong");
+            }
+
+
+            if (book.isbn.size() != 10)
+            {
+                throw std::domain_error("ISBN Harus 10 Angka");
+            }
+            int Xcount = 0;
+            for (wchar_t ch : book.isbn)
+            {
+                if (ch == L'X')
+                {
+                    Xcount++;
+                    continue;
+                }
+                if (!iswdigit(ch))
+                {
+                    throw std::domain_error("ISBN harus berupa angka!");
+                }
+            }
+            
+            if ((Xcount == 1 && book.isbn[book.isbn.size() - 1] != L'X') || (Xcount > 1))
+            {
+                throw std::domain_error("X hanya Bisa Di akhir ISBN");
+            }
+            if (hashTable.get(book.isbn) != nullptr)
+            {
+                throw std::domain_error("Buku dengan ISBN sama telah ada");
+            }
+
+            if (book.title.size() == 0)
+            {
+                throw std::domain_error("Judul Tidak Boleh Kosong");
+            }
+            if (book.author.size() == 0)
+            {
+                throw std::domain_error("Penulis Tidak Boleh Kosong");
+            }
+            if (book.year.size() == 0)
+            {
+                throw std::domain_error("Tahun Terbit Tidak Boleh Kosong");
+            }
+
+            
+            try
+            {
+                size_t pos;
+                int year = std::stoi(book.year, &pos);
+                if (pos != book.year.size())
+                {
+                    throw std::invalid_argument(" ");
+                }
+                if (year < 1000)
+                    throw std::domain_error("Tahun Minimal 1000");
+                if (year > 2500)
+                    throw std::domain_error("Tahun Maximal 2500");
+            }
+            catch (std::out_of_range const &)
+            {
+                throw std::domain_error("Angka Melampaui Batas");
+            }
+            catch (std::invalid_argument const &)
+            {
+                throw std::domain_error("Tahun Harus Berupa Angka");
+            }
+
+            if (book.publisher.size() == 0)
+            {
+                throw std::domain_error("Penerbit Tidak Boleh Kosong");
+            }
+
+        }
+
+        catch (std::domain_error const &error)
+        {
+            MessageBoxA(window.hwnd, error.what(), "Error", MB_OK);
             return 0;
         }
 
         hashTable.put(book.isbn, book);
         tree.insert(std::move(book));
 
-        MessageBoxW(window.hwnd,L"Buku Telah berhasil Ditambahkan",L"Success", MB_OK);
+        MessageBoxW(window.hwnd, L"Buku Telah berhasil Ditambahkan", L"Success", MB_OK);
         window.Destroy();
 
         RefreshAllList();
@@ -338,20 +421,21 @@ namespace TabFindBooksRange
     UI::Label labelk;
     UI::VListView listView;
     std::thread findThread;
-    std::vector<Book*> booksList;
+    std::vector<Book *> booksList;
 
-    wchar_t* OnGetItem(int row, int column) {
-        Book* book = booksList[row];
+    wchar_t *OnGetItem(int row, int column)
+    {
+        Book *book = booksList[row];
         if (column == 0)
-            return const_cast<wchar_t*>(book->isbn.c_str());
+            return const_cast<wchar_t *>(book->isbn.c_str());
         else if (column == 1)
-            return const_cast<wchar_t*>(book->title.c_str());
+            return const_cast<wchar_t *>(book->title.c_str());
         else if (column == 2)
-            return const_cast<wchar_t*>(book->author.c_str());
+            return const_cast<wchar_t *>(book->author.c_str());
         else if (column == 3)
-            return const_cast<wchar_t*>(book->publisher.c_str());
+            return const_cast<wchar_t *>(book->publisher.c_str());
         else if (column == 4)
-            return const_cast<wchar_t*>(book->year.c_str());
+            return const_cast<wchar_t *>(book->year.c_str());
         return nullptr;
     }
 
@@ -368,9 +452,7 @@ namespace TabFindBooksRange
         {
             timer.start();
             tree.findBetween(Book{L".", fromTextBox.getText()}, {L":", toTextBox.getText()}, [&](RBNode<Book> *node)
-                             {
-            booksList.push_back(&node->value);
-            });
+                             { booksList.push_back(&node->value); });
             timer.end();
         }
 
@@ -384,14 +466,14 @@ namespace TabFindBooksRange
         btnFind.SetEnable(true);
     }
 
-    void RefreshList() {
+    void RefreshList()
+    {
         btnFind.SetEnable(false);
         if (findThread.joinable())
         {
             findThread.join();
         }
         findThread = std::thread(DoRefresh);
-        
     }
 
     LRESULT OnFindClick(UI::CallbackParam param)
@@ -472,20 +554,21 @@ namespace TabAllBooks
     UI::Label labelk;
     UI::VListView listView;
     std::thread showThread;
-    std::vector<Book*> booksList;
+    std::vector<Book *> booksList;
 
-    wchar_t* OnGetItem(int row, int column) {
-        Book* book = booksList[row];
+    wchar_t *OnGetItem(int row, int column)
+    {
+        Book *book = booksList[row];
         if (column == 0)
-            return const_cast<wchar_t*>(book->isbn.c_str());
+            return const_cast<wchar_t *>(book->isbn.c_str());
         else if (column == 1)
-            return const_cast<wchar_t*>(book->title.c_str());
+            return const_cast<wchar_t *>(book->title.c_str());
         else if (column == 2)
-            return const_cast<wchar_t*>(book->author.c_str());
+            return const_cast<wchar_t *>(book->author.c_str());
         else if (column == 3)
-            return const_cast<wchar_t*>(book->publisher.c_str());
+            return const_cast<wchar_t *>(book->publisher.c_str());
         else if (column == 4)
-            return const_cast<wchar_t*>(book->year.c_str());
+            return const_cast<wchar_t *>(book->year.c_str());
         return nullptr;
     }
 
@@ -495,7 +578,7 @@ namespace TabAllBooks
 
         booksList.resize(tree.count);
         listView.SetRowCount(0);
-        
+
         label.SetText(L"Memuat data");
         Timer timer;
 
@@ -524,11 +607,12 @@ namespace TabAllBooks
         std::wstringstream stream;
         stream << "Data dimuat dalam " << timer.durationStr();
         label.SetText(stream.str().c_str());
-        
+
         button.SetEnable(true);
     }
 
-    void RefreshList() {
+    void RefreshList()
+    {
         button.SetEnable(false);
         if (showThread.joinable())
         {
@@ -607,7 +691,7 @@ namespace TabDetailsBooks
     UI::StatusBar statusBar;
     UI::ListView listView;
     UI::Label labelk;
-     UI::Button btnAdd;
+    UI::Button btnAdd;
     UI::Button btnDelete;
 
     void DoFind()
@@ -669,7 +753,7 @@ namespace TabDetailsBooks
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label),
-            UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+             UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
@@ -717,7 +801,7 @@ namespace MainWindow
             int titleIndex = reader.findHeaderIndex("Book-Title");
             int authorIndex = reader.findHeaderIndex("Book-Author");
             int publisherIndex = reader.findHeaderIndex("Publisher");
-            int yearIndex= reader.findHeaderIndex("Year-Of-Publication");
+            int yearIndex = reader.findHeaderIndex("Year-Of-Publication");
 
             while (reader.readData())
             {
@@ -802,7 +886,8 @@ namespace MainWindow
     }
 }
 
-void RefreshAllList() {
+void RefreshAllList()
+{
     TabAllBooks::RefreshList();
     TabFindBooksRange::RefreshList();
 }
