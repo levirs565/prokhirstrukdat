@@ -675,11 +675,11 @@ namespace TabDetailsBooks
         UI::LayoutControls(&window, true);
 
         listView.InsertColumn(L"Prop", 100);
-        listView.InsertRow(L"ISBN               :");
-        listView.InsertRow(L"Judul Buku        :");
-        listView.InsertRow(L"Penulis Buku      :");
-        listView.InsertRow(L"Tahun Terbit     :");
-        listView.InsertRow(L"Penerbit Buku  :");
+        listView.InsertRow(L"ISBN");
+        listView.InsertRow(L"Judul Buku");
+        listView.InsertRow(L"Penulis Buku");
+        listView.InsertRow(L"Penerbit Buku");
+        listView.InsertRow(L"Tahun Terbit");
         listView.InsertColumn(L"Value", 200);
 
         return 0;
