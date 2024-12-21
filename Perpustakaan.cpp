@@ -170,7 +170,7 @@ namespace TabHistoryDelete
     UI::Label labelk;
     UI::ProgressBar progress;
     UI::VListView listView;
-    std::thread showThread;
+    std::thread showThread, restoreThread;
     std::vector<Book*> booksList;
 
     wchar_t* OnGetItem(int row, int column) {
@@ -237,6 +237,25 @@ namespace TabHistoryDelete
     {
         RefreshList();
         return 0;
+    }
+
+    void DoRestore() {
+        Timer timer;
+        progress.SetWaiting(false);
+
+        timer.start();
+        for (int v : listView.GetSelectedIndex()) {
+
+        }
+    }
+
+    LRESULT OnRestoreClick(UI::CallbackParam param)
+    {
+        btnTampil.SetEnable(false);
+        if (restoreThread.joinable()) {
+            restoreThread.join();
+        }
+        restoreThread = std::thread(DoRestore);
     }
 
     LRESULT OnCreate(UI::CallbackParam param)
