@@ -101,11 +101,10 @@ namespace AddWindow
 
         try
         {
-        if (book.isbn.size() == 0)
+            if (book.isbn.size() == 0)
             {
                 throw std::domain_error("ISBN Tidak Boleh Kosong");
             }
-
 
             if (book.isbn.size() != 10)
             {
@@ -124,7 +123,7 @@ namespace AddWindow
                     throw std::domain_error("ISBN harus berupa angka!");
                 }
             }
-            
+
             if ((Xcount == 1 && book.isbn[book.isbn.size() - 1] != L'X') || (Xcount > 1))
             {
                 throw std::domain_error("X hanya Bisa Di akhir ISBN");
@@ -147,7 +146,6 @@ namespace AddWindow
                 throw std::domain_error("Tahun Terbit Tidak Boleh Kosong");
             }
 
-            
             try
             {
                 size_t pos;
@@ -174,7 +172,6 @@ namespace AddWindow
             {
                 throw std::domain_error("Penerbit Tidak Boleh Kosong");
             }
-
         }
 
         catch (std::domain_error const &error)
@@ -243,6 +240,39 @@ namespace AddWindow
     }
 }
 
+struct BookListView : UI::VListView
+{
+    std::vector<Book *> items;
+
+    void Create(UI::Window *window, HWND hParent, POINT pos, SIZE size) override
+    {
+        _dwStyle |= LVS_REPORT | WS_BORDER;
+        UI::VListView::Create(window, hParent, pos, size);
+
+        InsertColumn(L"ISBN", 100);
+        InsertColumn(L"Judul", 200);
+        InsertColumn(L"Penulis", 100);
+        InsertColumn(L"Penerbit", 100);
+        InsertColumn(L"Tahun", 100);
+    }
+
+    wchar_t *OnGetItem(int row, int column) override
+    {
+        Book *book = items[row];
+        if (column == 0)
+            return const_cast<wchar_t *>(book->isbn.c_str());
+        else if (column == 1)
+            return const_cast<wchar_t *>(book->title.c_str());
+        else if (column == 2)
+            return const_cast<wchar_t *>(book->author.c_str());
+        else if (column == 3)
+            return const_cast<wchar_t *>(book->publisher.c_str());
+        else if (column == 4)
+            return const_cast<wchar_t *>(book->year.c_str());
+        return nullptr;
+    }
+};
+
 namespace TabHistoryDelete
 {
     UI::Window window;
@@ -252,28 +282,13 @@ namespace TabHistoryDelete
     UI::Button btnTampil;
     UI::Label labelk;
     UI::ProgressBar progress;
-    UI::VListView listView;
+    BookListView listView;
     std::thread showThread, restoreThread;
-    std::vector<Book*> booksList;
 
-    wchar_t* OnGetItem(int row, int column) {
-        Book* book = booksList[row];
-        if (column == 0)
-            return const_cast<wchar_t*>(book->isbn.c_str());
-        else if (column == 1)
-            return const_cast<wchar_t*>(book->title.c_str());
-        else if (column == 2)
-            return const_cast<wchar_t*>(book->author.c_str());
-        else if (column == 3)
-            return const_cast<wchar_t*>(book->publisher.c_str());
-        else if (column == 4)
-            return const_cast<wchar_t*>(book->year.c_str());
-        return nullptr;
-    }
-    
-    void DoRefresh() {
+    void DoRefresh()
+    {
         std::wstring type = combobox.GetSelectedText();
-        booksList.resize(removeHistoryTree.count);
+        listView.items.resize(removeHistoryTree.count);
         listView.SetRowCount(0);
         Timer timer;
         progress.SetWaiting(true);
@@ -282,8 +297,9 @@ namespace TabHistoryDelete
             timer.start();
 
             size_t current = 0;
-            std::function<void(RBNode<Book>*)> visitor = [&](RBNode<Book>* node) {
-                booksList[current] = &node->value;
+            std::function<void(RBNode<Book> *)> visitor = [&](RBNode<Book> *node)
+            {
+                listView.items[current] = &node->value;
                 current++;
             };
 
@@ -307,7 +323,8 @@ namespace TabHistoryDelete
         btnTampil.SetEnable(true);
     }
 
-    void RefreshList() {
+    void RefreshList()
+    {
         btnTampil.SetEnable(false);
         if (showThread.joinable())
         {
@@ -322,20 +339,22 @@ namespace TabHistoryDelete
         return 0;
     }
 
-    void DoRestore() {
+    void DoRestore()
+    {
         Timer timer;
         progress.SetWaiting(false);
 
         timer.start();
-        for (int v : listView.GetSelectedIndex()) {
-
+        for (int v : listView.GetSelectedIndex())
+        {
         }
     }
 
     LRESULT OnRestoreClick(UI::CallbackParam param)
     {
         btnTampil.SetEnable(false);
-        if (restoreThread.joinable()) {
+        if (restoreThread.joinable())
+        {
             restoreThread.join();
         }
         restoreThread = std::thread(DoRestore);
@@ -349,9 +368,6 @@ namespace TabHistoryDelete
         label.SetText(L"Data Belum Dimuat");
         labelk.SetText(L" ");
         btnRestore.SetText(L"Restore");
-
-        listView._dwStyle |= LVS_REPORT | WS_BORDER;
-        listView.itemGetter = OnGetItem;
 
         window.controlsLayout = {
             {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
@@ -368,9 +384,6 @@ namespace TabHistoryDelete
         combobox.AddItem(L"In-order");
         combobox.AddItem(L"Post-order");
         combobox.SetSelectedIndex(1);
-
-        listView.InsertColumn(L"ISBN", 100);
-        listView.InsertColumn(L"Judul Buku", 200);
 
         return 0;
     }
@@ -419,29 +432,12 @@ namespace TabFindBooksRange
     UI::ProgressBar progress;
     UI::Label label;
     UI::Label labelk;
-    UI::VListView listView;
+    BookListView listView;
     std::thread findThread;
-    std::vector<Book *> booksList;
-
-    wchar_t *OnGetItem(int row, int column)
-    {
-        Book *book = booksList[row];
-        if (column == 0)
-            return const_cast<wchar_t *>(book->isbn.c_str());
-        else if (column == 1)
-            return const_cast<wchar_t *>(book->title.c_str());
-        else if (column == 2)
-            return const_cast<wchar_t *>(book->author.c_str());
-        else if (column == 3)
-            return const_cast<wchar_t *>(book->publisher.c_str());
-        else if (column == 4)
-            return const_cast<wchar_t *>(book->year.c_str());
-        return nullptr;
-    }
 
     void DoRefresh()
     {
-        booksList.clear();
+        listView.items.clear();
         listView.SetRowCount(0);
 
         label.SetText(L"Menemukan data");
@@ -452,12 +448,12 @@ namespace TabFindBooksRange
         {
             timer.start();
             tree.findBetween(Book{L".", fromTextBox.getText()}, {L":", toTextBox.getText()}, [&](RBNode<Book> *node)
-                             { booksList.push_back(&node->value); });
+                             { listView.items.push_back(&node->value); });
             timer.end();
         }
 
         progress.SetWaiting(false);
-        listView.SetRowCount(booksList.size());
+        listView.SetRowCount(listView.items.size());
 
         std::wstringstream stream;
         stream << "Data ditemukan dalam dalam " << timer.durationStr();
@@ -502,9 +498,6 @@ namespace TabFindBooksRange
         label.SetText(L"Data belum dimuat");
         labelk.SetText(L" ");
 
-        listView._dwStyle |= LVS_REPORT | WS_BORDER;
-        listView.itemGetter = OnGetItem;
-
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
 
@@ -526,12 +519,6 @@ namespace TabFindBooksRange
 
         UI::LayoutControls(&window, true);
 
-        listView.InsertColumn(L"ISBN", 100);
-        listView.InsertColumn(L"Judul", 200);
-        listView.InsertColumn(L"Penulis", 100);
-        listView.InsertColumn(L"Penerbit", 100);
-        listView.InsertColumn(L"Tahun", 100);
-
         return 0;
     }
 
@@ -552,31 +539,14 @@ namespace TabAllBooks
     UI::ProgressBar progress;
     UI::Label label;
     UI::Label labelk;
-    UI::VListView listView;
+    BookListView listView;
     std::thread showThread;
-    std::vector<Book *> booksList;
-
-    wchar_t *OnGetItem(int row, int column)
-    {
-        Book *book = booksList[row];
-        if (column == 0)
-            return const_cast<wchar_t *>(book->isbn.c_str());
-        else if (column == 1)
-            return const_cast<wchar_t *>(book->title.c_str());
-        else if (column == 2)
-            return const_cast<wchar_t *>(book->author.c_str());
-        else if (column == 3)
-            return const_cast<wchar_t *>(book->publisher.c_str());
-        else if (column == 4)
-            return const_cast<wchar_t *>(book->year.c_str());
-        return nullptr;
-    }
 
     void DoRefresh()
     {
         std::wstring type = combobox.GetSelectedText();
 
-        booksList.resize(tree.count);
+        listView.items.resize(tree.count);
         listView.SetRowCount(0);
 
         label.SetText(L"Memuat data");
@@ -589,7 +559,7 @@ namespace TabAllBooks
             size_t current = 0;
             std::function<void(RBNode<Book> *)> visitor = [&](RBNode<Book> *node)
             {
-                booksList[current] = &node->value;
+                listView.items[current] = &node->value;
                 current++;
             };
             if (type == L"In-order")
@@ -602,7 +572,7 @@ namespace TabAllBooks
         }
 
         progress.SetWaiting(false);
-        listView.SetRowCount(booksList.size());
+        listView.SetRowCount(listView.items.size());
 
         std::wstringstream stream;
         stream << "Data dimuat dalam " << timer.durationStr();
@@ -638,8 +608,6 @@ namespace TabAllBooks
         button.SetText(L"Tampilkan");
         button.commandListener = OnShowClick;
         label.SetText(L"Data belum dimuat");
-        listView._dwStyle |= LVS_REPORT | WS_BORDER;
-        listView.itemGetter = OnGetItem;
 
         labelk.SetText(L" ");
 
@@ -664,12 +632,6 @@ namespace TabAllBooks
         combobox.AddItem(L"In-order");
         combobox.AddItem(L"Post-order");
         combobox.SetSelectedIndex(1);
-
-        listView.InsertColumn(L"ISBN", 100);
-        listView.InsertColumn(L"Judul Buku", 200);
-        listView.InsertColumn(L"Penulis", 200);
-        listView.InsertColumn(L"Penerbit", 200);
-        listView.InsertColumn(L"Year", 100);
 
         return 0;
     }

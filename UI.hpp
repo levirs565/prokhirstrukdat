@@ -761,11 +761,15 @@ namespace UI
             // }
             if (info->item.mask & LVIF_TEXT) {
                 if (info->item.iSubItem < _columnCount) {
-                    info->item.pszText = itemGetter(info->item.iItem, info->item.iSubItem);
+                    info->item.pszText = OnGetItem(info->item.iItem, info->item.iSubItem);
                 }
             }
 
             return 0;
+        }
+
+        virtual wchar_t* OnGetItem(int row, int column) {
+            return itemGetter(row, column);
         }
 
         void InsertColumn(const std::wstring &title, int width) {
