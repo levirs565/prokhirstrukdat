@@ -808,6 +808,22 @@ namespace MainWindow
         // std::wcout << timer.durationMs() << std::endl;
     }
 
+    LRESULT OnDestroy(UI::CallbackParam param)
+    {
+        if (TabHistoryDelete::showThread.joinable())
+            TabHistoryDelete::showThread.join();
+        if (TabHistoryDelete::restoreThread.joinable())
+            TabHistoryDelete::restoreThread.join();
+        if (TabAllBooks::showThread.joinable())
+            TabAllBooks::showThread.join();
+        if (TabFindBooksRange::findThread.joinable())
+            TabFindBooksRange::findThread.join();
+        if (MainWindow::loadThread.joinable())
+            MainWindow::loadThread.join();
+        
+        return 0;
+    }
+
     LRESULT OnCreate(UI::CallbackParam param)
     {
         window.controlsLayout = {
@@ -844,6 +860,7 @@ namespace MainWindow
         window.quitWhenClose = true;
         window.title = L"MainWindow";
         window.registerMessageListener(WM_CREATE, OnCreate);
+        window.registerMessageListener(WM_DESTROY, OnDestroy);
         UI::ShowWindowClass(window);
     }
 }

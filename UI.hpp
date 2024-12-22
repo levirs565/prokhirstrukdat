@@ -406,7 +406,7 @@ namespace UI
             _ClearWindowControls(this);
         }
 
-        void Destroy() 
+        void Destroy()
         {
             DestroyWindow(hwnd);
         }
@@ -731,14 +731,16 @@ namespace UI
             return buffer;
         }
 
-        void RemoveRow(int row) {
+        void RemoveRow(int row)
+        {
             ListView_DeleteItem(hwnd, row);
         }
     };
 
-    struct VListView : ListView {
+    struct VListView : ListView
+    {
         size_t _columnCount = 0;
-        std::function<wchar_t*(int, int)> itemGetter;
+        std::function<wchar_t *(int, int)> itemGetter;
 
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
@@ -748,19 +750,21 @@ namespace UI
 
             window->_notifyListeners.emplace(
                 std::make_pair(_controlId, LVN_GETDISPINFOW),
-                std::bind(&VListView::_OnLVNGetDispInfo, this, std::placeholders::_1)
-            );
+                std::bind(&VListView::_OnLVNGetDispInfo, this, std::placeholders::_1));
             _columnCount = 0;
         }
 
-        LRESULT _OnLVNGetDispInfo(UI::CallbackParam param) {
-            NMLVDISPINFOW* info = reinterpret_cast<NMLVDISPINFOW*>(param.lParam); 
+        LRESULT _OnLVNGetDispInfo(UI::CallbackParam param)
+        {
+            NMLVDISPINFOW *info = reinterpret_cast<NMLVDISPINFOW *>(param.lParam);
 
             // if (info->item.mask & LVIF_STATE) {
-                // info->item.state |= LVIS_
+            // info->item.state |= LVIS_
             // }
-            if (info->item.mask & LVIF_TEXT) {
-                if (info->item.iSubItem < _columnCount) {
+            if (info->item.mask & LVIF_TEXT)
+            {
+                if (info->item.iSubItem < _columnCount)
+                {
                     info->item.pszText = OnGetItem(info->item.iItem, info->item.iSubItem);
                 }
             }
@@ -768,28 +772,34 @@ namespace UI
             return 0;
         }
 
-        virtual wchar_t* OnGetItem(int row, int column) {
+        virtual wchar_t *OnGetItem(int row, int column)
+        {
             return itemGetter(row, column);
         }
 
-        void InsertColumn(const std::wstring &title, int width) {
+        void InsertColumn(const std::wstring &title, int width)
+        {
             _columnCount++;
-            ListView::InsertColumn(title, width);     
+            ListView::InsertColumn(title, width);
         }
 
-        void DeleteAllRows() {
+        void DeleteAllRows()
+        {
             throw std::invalid_argument("Cannot use DeleteAllRows in VListView");
         }
 
-        void RemoveRow() {
+        void RemoveRow()
+        {
             throw std::invalid_argument("Cannot use RemoveRow in VListView");
         }
 
-        int InsertRow(const std::wstring &text) {
+        int InsertRow(const std::wstring &text)
+        {
             throw std::invalid_argument("Cannot use InsertRow in VListView");
         }
 
-        void SetRowCount(size_t count) {
+        void SetRowCount(size_t count)
+        {
             ListView_SetItemCount(hwnd, static_cast<int>(count));
         }
     };
@@ -1172,6 +1182,50 @@ namespace UI
             self = reinterpret_cast<Window *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
         }
 
+        UINT next = TRUE;
+        if (self)
+        {
+            switch (uMsg)
+            {
+            case WM_COMMAND:
+            {
+                auto func = self->_cmdListeners.find(LOWORD(wParam));
+                if (func != self->_cmdListeners.end())
+                {
+                    next = func->second({self,
+                                         uMsg,
+                                         wParam,
+                                         lParam});
+                }
+                break;
+            }
+            case WM_NOTIFY:
+            {
+                LPNMHDR param = reinterpret_cast<LPNMHDR>(lParam);
+                auto func = self->_notifyListeners.find(std::make_pair(param->idFrom, param->code));
+                if (func != self->_notifyListeners.end())
+                {
+                    next = func->second({self,
+                                         uMsg,
+                                         wParam,
+                                         lParam});
+                }
+                break;
+            }
+            default:
+            {
+                auto func = self->_msgListeners.find(uMsg);
+
+                if (func != self->_msgListeners.end())
+                {
+                    next = func->second({self, uMsg, wParam, lParam});
+                }
+                break;
+            }
+            }
+        }
+
+        // Fungsi berikur harus selalu dijalankan
         switch (uMsg)
         {
         case WM_DESTROY:
@@ -1179,61 +1233,18 @@ namespace UI
             if (self->quitWhenClose)
             {
                 PostQuitMessage(0);
-                return 0;
             }
             self->Clear();
             break;
         }
         case WM_SIZE:
             LayoutControls(self, false);
-            return 0;
-        case WM_COMMAND:
-        {
-            if (self)
-            {
-                auto func = self->_cmdListeners.find(LOWORD(wParam));
-                if (func != self->_cmdListeners.end())
-                {
-                    return func->second({self,
-                                         uMsg,
-                                         wParam,
-                                         lParam});
-                }
-            }
             break;
         }
-        case WM_NOTIFY:
-        {
-            if (self)
-            {
-                LPNMHDR param = reinterpret_cast<LPNMHDR>(lParam);
-                auto func = self->_notifyListeners.find(std::make_pair(param->idFrom, param->code));
-                if (func != self->_notifyListeners.end())
-                {
-                    return func->second({self,
-                                         uMsg,
-                                         wParam,
-                                         lParam});
-                }
-            }
-            break;
-        }
-        }
 
-        if (self)
-        {
-            auto func = self->_msgListeners.find(uMsg);
-
-            if (func != self->_msgListeners.end())
-            {
-                return func->second({self,
-                                     uMsg,
-                                     wParam,
-                                     lParam});
-            }
-        }
-
-        return DefWindowProcW(hwnd, uMsg, wParam, lParam);
+        if (next)
+            return DefWindowProc(hwnd, uMsg, wParam, lParam);
+        return next;
     }
 
     /**
