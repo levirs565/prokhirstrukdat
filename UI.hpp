@@ -687,56 +687,11 @@ namespace UI
      */
     struct ListView : Control
     {
-        Menu itemMenu;
-
-        static LRESULT CALLBACK _WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
-        {
-            ListView *self = reinterpret_cast<ListView *>(dwRefData);
-            switch (uMsg)
-            {
-            case WM_RBUTTONDOWN:
-                self->_ShowContextMenu((wParam & MK_SHIFT) != 0, (wParam & MK_CONTROL) != 0);
-                break;
-            }
-            return comCtl.DefSubclassProc(hwnd, uMsg, wParam, lParam);
-        }
-
-        void _ShowContextMenu(bool hasShift, bool hashCtrl)
-        {
-            if (!itemMenu.IsCreated())
-                return;
-
-            POINT pos;
-            GetCursorPos(&pos);
-
-            LVHITTESTINFO lvhti{};
-            lvhti.pt = pos;
-            ScreenToClient(hwnd, &lvhti.pt);
-            ListView_HitTest(hwnd, &lvhti);
-
-            if (!hashCtrl && !hasShift)
-            {
-                if (lvhti.iItem != -1)
-                {
-                    if ((ListView_GetItemState(hwnd, lvhti.iItem, LVIS_SELECTED) & LVIS_SELECTED) == 0) {
-                        ListView_SetItemState(hwnd, -1, 0, LVIS_SELECTED);
-                        ListView_SetItemState(hwnd, lvhti.iItem, LVIS_SELECTED, LVIS_SELECTED);
-                    }
-                    ListView_SetItemState(hwnd, lvhti.iItem, LVIS_FOCUSED, LVIS_FOCUSED);
-                } else {
-                    ListView_SetItemState(hwnd, -1, 0, LVIS_SELECTED);
-                }
-            }
-
-            itemMenu.ShowAtPoint(_window->hwnd, pos);
-        }
-
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
             _className = WC_LISTVIEWW;
 
             Control::Create(window, hParent, pos, size);
-            comCtl.SetWindowSubclass(hwnd, &ListView::_WndProc, 0, reinterpret_cast<DWORD_PTR>(this));
         }
 
         /**
@@ -801,10 +756,6 @@ namespace UI
             }
 
             return res;
-        }
-
-        int GetFocusedIndex() {
-            return ListView_GetNextItem(hwnd, -1, LVNI_FOCUSED);
         }
 
         std::wstring GetText(int row, int column)

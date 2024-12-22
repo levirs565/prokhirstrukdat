@@ -244,29 +244,8 @@ struct BookListView : UI::VListView
 {
     std::vector<Book *> items;
 
-    LRESULT OnCopyISBNClick(UI::CallbackParam param) {
-        int focusedIndex = GetFocusedIndex();
-
-        if (focusedIndex == -1) {
-            MessageBoxW(_window->hwnd, L"Tidak ada item yang terpilih", L"Gagal", MB_OK);
-            return 0;
-        }
-
-        std::wstring isbn = GetText(focusedIndex, 0);
-        Utils::CopyToClipboard(isbn);
-
-        return 0;
-    }
-
     void Create(UI::Window *window, HWND hParent, POINT pos, SIZE size) override
     {
-        if (!itemMenu.IsCreated()) {
-            itemMenu.Create();
-
-            window->registerCommandListener(itemMenu.AddMenu(L"Salin ISBN"), 
-                std::bind(&BookListView::OnCopyISBNClick, this, std::placeholders::_1));
-        }
-
         _dwStyle |= LVS_REPORT | WS_BORDER | LVS_SHOWSELALWAYS;
         UI::VListView::Create(window, hParent, pos, size);
 
@@ -415,11 +394,11 @@ LRESULT OnAddClick(UI::CallbackParam param)
     return 0;
 }
 
-void RemoveByListViewSelection(UI::ListView &listView)
+void RemoveByListViewSelection(UI::ListView* listView)
 {
-    for (int v : listView.GetSelectedIndex())
+    for (int v : listView->GetSelectedIndex())
     {
-        std::wstring isbn = listView.GetText(v, 0);
+        std::wstring isbn = listView->GetText(v, 0);
         Book *buku = hashTable.get(isbn);
         Book duplicatedBook = *buku;
         if (!tree.remove(*buku))
@@ -435,14 +414,33 @@ void RemoveByListViewSelection(UI::ListView &listView)
     TabHistoryDelete::RefreshList();
 }
 
+void CopyISBNByListViewSelection(UI::ListView* listView)
+{
+    try
+    {
+        std::vector<int> focusedIndexs = listView->GetSelectedIndex();
+
+        if (focusedIndexs.size() == 0)
+            throw std::domain_error("Tidak ada item yang dipilih");
+        if (focusedIndexs.size() > 1)
+            throw std::domain_error("Item yang dipilih lebih dari 1");
+
+        std::wstring isbn = listView->GetText(focusedIndexs[0], 0);
+        Utils::CopyToClipboard(isbn);
+    }
+    catch (std::domain_error const &e)
+    {
+        MessageBoxA(listView->hwnd, e.what(), "Gagal", MB_OK);
+    }
+}
+
 namespace TabFindBooksRange
 {
     UI::Window window;
     UI::Label fromLabel, toLabel;
     UI::TextBox fromTextBox, toTextBox;
     UI::Button btnFind;
-    UI::Button btnAdd;
-    UI::Button btnDelete;
+    UI::Button btnAdd, btnDelete, btnCopyISBN;
     UI::ProgressBar progress;
     UI::Label label;
     UI::Label labelk;
@@ -489,7 +487,12 @@ namespace TabFindBooksRange
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        RemoveByListViewSelection(listView);
+        RemoveByListViewSelection(&listView);
+        return 0;
+    }
+
+    LRESULT OnCopyISBNClick(UI::CallbackParam param) {
+        CopyISBNByListViewSelection(&listView);
         return 0;
     }
 
@@ -503,6 +506,9 @@ namespace TabFindBooksRange
 
         btnFind.SetText(L"Cari");
         btnFind.commandListener = OnFindClick;
+
+        btnCopyISBN.SetText(L"Salin ISBN");
+        btnCopyISBN.commandListener = OnCopyISBNClick;
 
         label.SetText(L"Data belum dimuat");
         labelk.SetText(L" ");
@@ -523,6 +529,7 @@ namespace TabFindBooksRange
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
 
@@ -545,6 +552,7 @@ namespace TabAllBooks
     UI::Button button;
     UI::Button btnAdd;
     UI::Button btnDelete;
+    UI::Button btnCopyISBN;
     UI::ProgressBar progress;
     UI::Label label;
     UI::Label labelk;
@@ -603,7 +611,13 @@ namespace TabAllBooks
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        RemoveByListViewSelection(listView);
+        RemoveByListViewSelection(&listView);
+        return 0;
+    }
+
+    LRESULT OnCopyISBNClick(UI::CallbackParam param)
+    {
+        CopyISBNByListViewSelection(&listView);
         return 0;
     }
 
@@ -621,6 +635,9 @@ namespace TabAllBooks
         btnDelete.SetText(L"Hapus Buku");
         btnDelete.commandListener = OnDeleteClick;
 
+        btnCopyISBN.SetText(L"Salin ISBN");
+        btnCopyISBN.commandListener = OnCopyISBNClick;
+
         window.controlsLayout = {
             {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &button)},
@@ -628,6 +645,7 @@ namespace TabAllBooks
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
