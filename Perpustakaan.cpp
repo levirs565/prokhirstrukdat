@@ -1,7 +1,6 @@
 #include "UI.hpp"
 #include "CSVReader.hpp"
 #include "RBTree.hpp"
-#include <thread>
 #include "Timer.hpp"
 #include <sstream>
 #include "Utils.hpp"
@@ -9,6 +8,7 @@
 #include "HalfSipHash.h"
 #include "MurmurHash3.h"
 #include "unordered_map"
+#include "WorkerThread.hpp"
 #include <stdlib.h>
 
 struct Book
@@ -283,7 +283,6 @@ namespace TabHistoryDelete
     UI::Label labelk;
     UI::ProgressBar progress;
     BookListView listView;
-    std::thread showThread, restoreThread;
 
     void DoRefresh()
     {
@@ -326,11 +325,7 @@ namespace TabHistoryDelete
     void RefreshList()
     {
         btnTampil.SetEnable(false);
-        if (showThread.joinable())
-        {
-            showThread.join();
-        }
-        showThread = std::thread(DoRefresh);
+        WorkerThread::SubmitWork(DoRefresh);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
@@ -353,11 +348,8 @@ namespace TabHistoryDelete
     LRESULT OnRestoreClick(UI::CallbackParam param)
     {
         btnTampil.SetEnable(false);
-        if (restoreThread.joinable())
-        {
-            restoreThread.join();
-        }
-        restoreThread = std::thread(DoRestore);
+        WorkerThread::SubmitWork(DoRestore);
+        return 0;
     }
 
     LRESULT OnCreate(UI::CallbackParam param)
@@ -433,7 +425,6 @@ namespace TabFindBooksRange
     UI::Label label;
     UI::Label labelk;
     BookListView listView;
-    std::thread findThread;
 
     void DoRefresh()
     {
@@ -465,11 +456,7 @@ namespace TabFindBooksRange
     void RefreshList()
     {
         btnFind.SetEnable(false);
-        if (findThread.joinable())
-        {
-            findThread.join();
-        }
-        findThread = std::thread(DoRefresh);
+        WorkerThread::SubmitWork(DoRefresh);
     }
 
     LRESULT OnFindClick(UI::CallbackParam param)
@@ -540,7 +527,6 @@ namespace TabAllBooks
     UI::Label label;
     UI::Label labelk;
     BookListView listView;
-    std::thread showThread;
 
     void DoRefresh()
     {
@@ -584,11 +570,7 @@ namespace TabAllBooks
     void RefreshList()
     {
         button.SetEnable(false);
-        if (showThread.joinable())
-        {
-            showThread.join();
-        }
-        showThread = std::thread(DoRefresh);
+        WorkerThread::SubmitWork(DoRefresh);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
@@ -744,7 +726,6 @@ namespace MainWindow
     UI::Tabs tabs;
     UI::StatusBar statusBar;
     UI::ProgressBar progressBar;
-    std::thread loadThread;
 
     void DoLoad()
     {
@@ -810,17 +791,7 @@ namespace MainWindow
 
     LRESULT OnDestroy(UI::CallbackParam param)
     {
-        if (TabHistoryDelete::showThread.joinable())
-            TabHistoryDelete::showThread.join();
-        if (TabHistoryDelete::restoreThread.joinable())
-            TabHistoryDelete::restoreThread.join();
-        if (TabAllBooks::showThread.joinable())
-            TabAllBooks::showThread.join();
-        if (TabFindBooksRange::findThread.joinable())
-            TabFindBooksRange::findThread.join();
-        if (MainWindow::loadThread.joinable())
-            MainWindow::loadThread.join();
-        
+        WorkerThread::Destroy();
         return 0;
     }
 
@@ -850,7 +821,7 @@ namespace MainWindow
         TabHistoryDelete::Init();
         tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
-        loadThread = std::thread(DoLoad);
+        WorkerThread::SubmitWork(DoLoad);
 
         return 0;
     }
@@ -873,6 +844,8 @@ void RefreshAllList()
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)
 {
+    WorkerThread::Init();
+
     UI::Setup(hInst, cmdShow);
     MainWindow::Show();
     return UI::RunEventLoop();
