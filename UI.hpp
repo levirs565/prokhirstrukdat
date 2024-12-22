@@ -107,18 +107,29 @@ namespace UI
         }
     }
 
+    struct ComCtl
+    {
+        using InitControlsT = void(WINAPI *)(void);
+        InitControlsT InitControls;
+        using SetWindowSubclassT = BOOL(WINAPI *)(HWND, SUBCLASSPROC, UINT_PTR, DWORD_PTR);
+        SetWindowSubclassT SetWindowSubclass;
+        using DefSubclassProcT = LRESULT(WINAPI *)(HWND, UINT, WPARAM, LPARAM);
+        DefSubclassProcT DefSubclassProc;
+    } comCtl;
+
     /**
      * Memuat library Comctl32.dll dan memanggil fungsi InitCommonControls
      * InitCommonControls akan menginisialisi kontrol umum seperti ListView agar bisa digunakan aplikasi
      */
-    void _CommCtlInitCommonControl()
+    void _ComCtlInit()
     {
         HINSTANCE inst = _LoadLibrary("Comctl32.dll");
 
-        using InitControlsT = void(WINAPI *)(void);
-        InitControlsT func = _GetProcAddress<InitControlsT>(inst, "InitCommonControls");
+        comCtl.InitControls = _GetProcAddress<ComCtl::InitControlsT>(inst, "InitCommonControls");
+        comCtl.SetWindowSubclass = _GetProcAddress<ComCtl::SetWindowSubclassT>(inst, "SetWindowSubclass");
+        comCtl.DefSubclassProc = _GetProcAddress<ComCtl::DefSubclassProcT>(inst, "DefSubclassProc");
 
-        func();
+        comCtl.InitControls();
     }
 
     /**
@@ -151,7 +162,7 @@ namespace UI
     void Setup(HINSTANCE instance, int nCmdShow)
     {
         _LoadManifest();
-        _CommCtlInitCommonControl();
+        _ComCtlInit();
         _LoadGDI();
         _InitFont();
         _hInstance = instance;
@@ -391,6 +402,10 @@ namespace UI
             _msgListeners.emplace(message, callback);
         }
 
+        void registerCommandListener(UINT_PTR cmd, CallbackType callback) {
+            _cmdListeners.emplace(cmd, callback);
+        }
+
         /**
          * Menreset isi dari windows
          * Note: Jangan memenggail fungsi ini
@@ -440,6 +455,8 @@ namespace UI
          */
         DWORD _dwStyle = WS_CHILD | WS_VISIBLE, _dwExStyle = 0;
 
+        Window *_window;
+
         /**
          * Mendapatkan ukuran default kontrol.
          * Jika w = 0, maka akan diganti dengan cx hasil fungsi ini
@@ -460,6 +477,7 @@ namespace UI
          */
         virtual void Create(Window *window, HWND hParent, POINT pos, SIZE size)
         {
+            _window = window;
             if (_controlId == 0)
             {
                 _controlId = _nextControlId++;
@@ -617,7 +635,7 @@ namespace UI
             ApplyDefaultFont();
 
             if (commandListener)
-                window->_cmdListeners.emplace(_controlId, commandListener);
+                window->registerCommandListener(_controlId, commandListener);
         }
 
         /**
@@ -631,17 +649,94 @@ namespace UI
         }
     };
 
+    struct Menu
+    {
+        HMENU handle;
+
+        Menu() : handle(0) {}
+        Menu(HMENU handle) : handle(handle) {}
+
+        bool IsCreated()
+        {
+            return handle != 0;
+        }
+
+        void Create()
+        {
+            handle = CreatePopupMenu();
+        }
+
+        UINT_PTR AddMenu(const std::wstring &caption)
+        {
+            UINT_PTR id = _nextControlId++;
+            InsertMenuW(handle, -1, MF_BYPOSITION | MF_STRING | MF_ENABLED, id, caption.c_str());
+            return id;
+        }
+
+        void ShowAtPoint(HWND hParent, POINT pt)
+        {
+            SetForegroundWindow(hParent);
+            TrackPopupMenu(handle, 0, pt.x, pt.y, 0, hParent, nullptr);
+            PostMessageW(hParent, WM_NULL, 0, 0);
+        }
+    };
+
     /**
      * Kontrol berupa listView
      * Untuk membuat kontrol ini menjadi tabel setel _dwStyle |= LVS_REPORT;
      */
     struct ListView : Control
     {
+        Menu itemMenu;
+
+        static LRESULT CALLBACK _WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+        {
+            ListView *self = reinterpret_cast<ListView *>(dwRefData);
+            switch (uMsg)
+            {
+            case WM_RBUTTONDOWN:
+                self->_ShowContextMenu((wParam & MK_SHIFT) != 0, (wParam & MK_CONTROL) != 0);
+                break;
+            }
+            return comCtl.DefSubclassProc(hwnd, uMsg, wParam, lParam);
+        }
+
+        void _ShowContextMenu(bool hasShift, bool hashCtrl)
+        {
+            if (!itemMenu.IsCreated())
+                return;
+
+            POINT pos;
+            GetCursorPos(&pos);
+
+            LVHITTESTINFO lvhti{};
+            lvhti.pt = pos;
+            ScreenToClient(hwnd, &lvhti.pt);
+            ListView_HitTest(hwnd, &lvhti);
+
+            if (!hashCtrl && !hasShift)
+            {
+                if (lvhti.iItem != -1)
+                {
+                    if ((ListView_GetItemState(hwnd, lvhti.iItem, LVIS_SELECTED) & LVIS_SELECTED) == 0) {
+                        ListView_SetItemState(hwnd, -1, 0, LVIS_SELECTED);
+                        ListView_SetItemState(hwnd, lvhti.iItem, LVIS_SELECTED, LVIS_SELECTED);
+                    }
+                    ListView_SetItemState(hwnd, lvhti.iItem, LVIS_FOCUSED, LVIS_FOCUSED);
+                } else {
+                    ListView_SetItemState(hwnd, -1, 0, LVIS_SELECTED);
+                }
+            }
+
+            itemMenu.ShowAtPoint(_window->hwnd, pos);
+        }
+
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
             _className = WC_LISTVIEWW;
 
             Control::Create(window, hParent, pos, size);
+            comCtl.SetWindowSubclass(hwnd, &ListView::_WndProc, 0, reinterpret_cast<DWORD_PTR>(this));
         }
 
         /**
@@ -708,6 +803,10 @@ namespace UI
             return res;
         }
 
+        int GetFocusedIndex() {
+            return ListView_GetNextItem(hwnd, -1, LVNI_FOCUSED);
+        }
+
         std::wstring GetText(int row, int column)
         {
             LVITEMW lvi = {};
@@ -734,6 +833,11 @@ namespace UI
         void RemoveRow(int row)
         {
             ListView_DeleteItem(hwnd, row);
+        }
+
+        void SetExtendedStyle(DWORD dwStyle)
+        {
+            ListView_SetExtendedListViewStyle(hwnd, dwStyle);
         }
     };
 

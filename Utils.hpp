@@ -52,4 +52,20 @@ namespace Utils
 
         return a.size() < b.size() ? -1 : 1;
     }
+
+    void CopyToClipboard(const std::wstring& data) {
+        size_t sz = sizeof(wchar_t) * (data.length() + 1);
+        HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, sz);
+        if (hMem == 0) throw Winapi::Error("Error at GlobalAlloc");
+
+        LPVOID hLock = GlobalLock(hMem);
+        memcpy(hLock, data.c_str(), sz);
+        GlobalUnlock(hLock);
+
+        if (!OpenClipboard(0)) throw Winapi::Error("Error at OpenClipboard");
+
+        EmptyClipboard();
+        SetClipboardData(CF_UNICODETEXT, hMem);
+        CloseClipboard();
+    }
 }

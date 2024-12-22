@@ -244,11 +244,33 @@ struct BookListView : UI::VListView
 {
     std::vector<Book *> items;
 
+    LRESULT OnCopyISBNClick(UI::CallbackParam param) {
+        int focusedIndex = GetFocusedIndex();
+
+        if (focusedIndex == -1) {
+            MessageBoxW(_window->hwnd, L"Tidak ada item yang terpilih", L"Gagal", MB_OK);
+            return 0;
+        }
+
+        std::wstring isbn = GetText(focusedIndex, 0);
+        Utils::CopyToClipboard(isbn);
+
+        return 0;
+    }
+
     void Create(UI::Window *window, HWND hParent, POINT pos, SIZE size) override
     {
-        _dwStyle |= LVS_REPORT | WS_BORDER;
+        if (!itemMenu.IsCreated()) {
+            itemMenu.Create();
+
+            window->registerCommandListener(itemMenu.AddMenu(L"Salin ISBN"), 
+                std::bind(&BookListView::OnCopyISBNClick, this, std::placeholders::_1));
+        }
+
+        _dwStyle |= LVS_REPORT | WS_BORDER | LVS_SHOWSELALWAYS;
         UI::VListView::Create(window, hParent, pos, size);
 
+        SetExtendedStyle(LVS_EX_FULLROWSELECT);
         InsertColumn(L"ISBN", 100);
         InsertColumn(L"Judul", 200);
         InsertColumn(L"Penulis", 100);
@@ -822,6 +844,8 @@ namespace MainWindow
         tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
         WorkerThread::SubmitWork(DoLoad);
+        TabAllBooks::RefreshList();
+        TabFindBooksRange::RefreshList();
 
         return 0;
     }
