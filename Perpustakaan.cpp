@@ -48,26 +48,14 @@ uint64_t fnv1a_hash(const uint8_t *data, size_t data_size)
 
 uint64_t BookHash(const std::wstring &wstr)
 {
-    // std::cout << wcstoull(wstr.c_str(), 0, 10) << std::endl;
     return HalfSipHash_64(wstr.data(), sizeof(wchar_t) * wstr.size(), &seed);
-    // return wcstoull(wstr.c_str(), 0, 10);
-    // return hasher(wstr);
-    // return MurmurHash_fmix64(wcstoull(wstr.c_str(), 0, 10));
-    // return fnv1a_hash((const uint8_t*) wstr.data(), sizeof(wchar_t) * wstr.size());
 }
-
-// struct BookHasher {
-//     uint64_t operator()(const std::wstring& wstr) {
-
-//     }
-// };
 
 RBTree<Book, decltype(&BookTitleCompare)> tree(BookTitleCompare);
 RobinHoodHashMap<std::wstring, Book, decltype(&BookHash)> hashTable(BookHash);
 RBTree<Book, decltype(&BookTitleCompare)> removeHistoryTree(BookTitleCompare);
-// std::unordered_map<std::wstring, Book> hashTable;
 
-void RefreshAllList();
+void EnqueueRefreshAllList();
 
 namespace AddWindow
 {
@@ -186,7 +174,7 @@ namespace AddWindow
         MessageBoxW(window.hwnd, L"Buku Telah berhasil Ditambahkan", L"Success", MB_OK);
         window.Destroy();
 
-        RefreshAllList();
+        EnqueueRefreshAllList();
 
         return 0;
     }
@@ -323,15 +311,15 @@ namespace TabHistoryDelete
         btnTampil.SetEnable(true);
     }
 
-    void RefreshList()
+    void EnqueueRefreshList()
     {
         btnTampil.SetEnable(false);
-        WorkerThread::SubmitWork(DoRefresh);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
     {
-        RefreshList();
+        EnqueueRefreshList();
         return 0;
     }
 
@@ -359,8 +347,8 @@ namespace TabHistoryDelete
     {
         btnTampil.SetEnable(false);
         
-        WorkerThread::SubmitWork(DoRestore);
-        RefreshAllList();
+        WorkerThread::EnqueueWork(DoRestore);
+        EnqueueRefreshAllList();
 
         return 0;
     }
@@ -483,15 +471,15 @@ namespace TabFindBooksRange
         btnFind.SetEnable(true);
     }
 
-    void RefreshList()
+    void EnqueueRefreshList()
     {
         btnFind.SetEnable(false);
-        WorkerThread::SubmitWork(DoRefresh);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnFindClick(UI::CallbackParam param)
     {
-        RefreshList();
+        EnqueueRefreshList();
         return 0;
     }
 
@@ -501,9 +489,9 @@ namespace TabFindBooksRange
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        WorkerThread::SubmitWork(DoDelete);
-        RefreshAllList();
-        TabHistoryDelete::RefreshList();
+        WorkerThread::EnqueueWork(DoDelete);
+        EnqueueRefreshAllList();
+        TabHistoryDelete::EnqueueRefreshList();
         return 0;
     }
 
@@ -614,15 +602,15 @@ namespace TabAllBooks
         button.SetEnable(true);
     }
 
-    void RefreshList()
+    void EnqueueRefreshList()
     {
         button.SetEnable(false);
-        WorkerThread::SubmitWork(DoRefresh);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
     {
-        RefreshList();
+        EnqueueRefreshList();
         return 0;
     }
 
@@ -632,9 +620,9 @@ namespace TabAllBooks
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        WorkerThread::SubmitWork(DoDelete);
-        RefreshAllList();
-        TabHistoryDelete::RefreshList();
+        WorkerThread::EnqueueWork(DoDelete);
+        EnqueueRefreshAllList();
+        TabHistoryDelete::EnqueueRefreshList();
         return 0;
     }
 
@@ -884,9 +872,9 @@ namespace MainWindow
         TabHistoryDelete::Init();
         tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
-        WorkerThread::SubmitWork(DoLoad);
-        TabAllBooks::RefreshList();
-        TabFindBooksRange::RefreshList();
+        WorkerThread::EnqueueWork(DoLoad);
+        TabAllBooks::EnqueueRefreshList();
+        TabFindBooksRange::EnqueueRefreshList();
 
         return 0;
     }
@@ -901,10 +889,10 @@ namespace MainWindow
     }
 }
 
-void RefreshAllList()
+void EnqueueRefreshAllList()
 {
-    TabAllBooks::RefreshList();
-    TabFindBooksRange::RefreshList();
+    TabAllBooks::EnqueueRefreshList();
+    TabFindBooksRange::EnqueueRefreshList();
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)

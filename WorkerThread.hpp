@@ -42,7 +42,7 @@ namespace WorkerThread {
         cnt++;
     }
 
-    void SubmitWork(WorkerType&& worker) {
+    void EnqueueWork(WorkerType&& worker) {
         _queue.push(std::move(worker));
 
         PTP_WORK work = CreateThreadpoolWork(_WorkCallback, nullptr, &_environment);
