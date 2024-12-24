@@ -33,21 +33,10 @@ struct BookTitleComparer
     }
 };
 
-uint64_t seed = 0xe17a1465;
-uint64_t fnv1a_hash(const uint8_t *data, size_t data_size)
-{
-    uint64_t hash = 0xcbf29ce484222325; // FNV offset basis
-
-    for (size_t i = 0; i < data_size; i++)
-    {
-        hash ^= data[i];
-        hash *= 0x100000001b3; // FNV prime
-    }
-    return hash;
-}
-
 struct BookTitleHasher
 {
+    uint64_t seed = 0xe17a1465;
+    
     uint64_t hash(const std::wstring &wstr)
     {
         return HalfSipHash_64(wstr.data(), sizeof(wchar_t) * wstr.size(), &seed);
@@ -849,28 +838,6 @@ namespace MainWindow
         std::wstringstream stream;
         stream << L"Data dimuat dari CSV dalam " << timer.durationStr();
         statusBar.SetText(1, stream.str());
-
-        size_t maxPsl = 0;
-        std::wstring isbn = L"";
-        for (size_t i = 0; i < hashTable.bucketSize; i++)
-        {
-            if (hashTable.buckets[i].filled)
-            {
-                if (hashTable.buckets[i].psl >= maxPsl)
-                {
-                    maxPsl = hashTable.buckets[i].psl;
-                    isbn = hashTable.buckets[i].key;
-                }
-            }
-        }
-
-        std::cout << "Max PSL: " << maxPsl << std::endl;
-
-        timer.start();
-        std::wcout << hashTable.get(isbn)->isbn << std::endl;
-        std::wcout << hashTable.get(L"0374157065")->title << std::endl;
-        // timer.end();
-        // std::wcout << timer.durationMs() << std::endl;
     }
 
     LRESULT OnDestroy(UI::CallbackParam param)
