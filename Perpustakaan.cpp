@@ -20,20 +20,20 @@ struct Book
     std::wstring year;
 };
 
-bool BookTitleCompare(const Book &a, const Book &b)
+struct BookTileComparer
 {
-    int compare = Utils::CompareWStringHalfInsensitive(a.title, b.title);
+    int compare(const Book &a, const Book &b)
+    {
+        int compare = Utils::CompareWStringHalfInsensitive(a.title, b.title);
 
-    if (compare == 0)
-        return a.isbn < b.isbn;
+        if (compare != 0)
+            return compare;
 
-    return compare == -1;
-}
+        return Utils::CompareWStringHalfInsensitive(a.isbn, b.isbn);
+    }
+};
 
 uint64_t seed = 0xe17a1465;
-
-std::hash<std::wstring> hasher;
-
 uint64_t fnv1a_hash(const uint8_t *data, size_t data_size)
 {
     uint64_t hash = 0xcbf29ce484222325; // FNV offset basis
@@ -46,14 +46,17 @@ uint64_t fnv1a_hash(const uint8_t *data, size_t data_size)
     return hash;
 }
 
-uint64_t BookHash(const std::wstring &wstr)
+struct BookTitleHasher
 {
-    return HalfSipHash_64(wstr.data(), sizeof(wchar_t) * wstr.size(), &seed);
-}
+    uint64_t hash(const std::wstring &wstr)
+    {
+        return HalfSipHash_64(wstr.data(), sizeof(wchar_t) * wstr.size(), &seed);
+    }
+};
 
-RBTree<Book, decltype(&BookTitleCompare)> tree(BookTitleCompare);
-RobinHoodHashMap<std::wstring, Book, decltype(&BookHash)> hashTable(BookHash);
-RBTree<Book, decltype(&BookTitleCompare)> removeHistoryTree(BookTitleCompare);
+RBTree<Book, BookTileComparer> tree;
+RobinHoodHashMap<std::wstring, Book, BookTitleHasher> hashTable;
+RBTree<Book, BookTileComparer> removeHistoryTree;
 
 void EnqueueRefreshAllList();
 
@@ -328,7 +331,7 @@ namespace TabHistoryDelete
             book.isbn = listView.GetText(v, 0);
             book.title = listView.GetText(v, 1);
 
-            RBNode<Book>* node = removeHistoryTree.findNode(book);
+            RBNode<Book> *node = removeHistoryTree.findNode(book);
             book = node->value;
 
             hashTable.put(book.isbn, book);
@@ -343,7 +346,7 @@ namespace TabHistoryDelete
     LRESULT OnRestoreClick(UI::CallbackParam param)
     {
         btnTampil.SetEnable(false);
-        
+
         WorkerThread::EnqueueWork(DoRestore);
         EnqueueRefreshAllList();
 
@@ -478,7 +481,8 @@ namespace TabFindBooksRange
         return 0;
     }
 
-    void DoDelete() {
+    void DoDelete()
+    {
         DoRemoveByListViewSelection(&listView);
     }
 
@@ -608,7 +612,8 @@ namespace TabAllBooks
         return 0;
     }
 
-    void DoDelete() {
+    void DoDelete()
+    {
         DoRemoveByListViewSelection(&listView);
     }
 
