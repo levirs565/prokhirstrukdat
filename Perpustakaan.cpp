@@ -62,7 +62,6 @@ namespace AddWindow
     UI::Window window;
     UI::Tabs tabs;
     UI::Label label;
-    UI::Label labelk;
     UI::Label isbn;
     UI::Label judul;
     UI::Label penulis;
@@ -187,7 +186,6 @@ namespace AddWindow
         penulis.SetText(L"Penulis Buku :");
         tahun.SetText(L"Tahun Terbit :");
         penerbit.SetText(L"Penerbit :");
-        labelk.SetText(L" ");
 
         isbnTextBox._dwStyle |= WS_BORDER;
         judulTextBox._dwStyle |= WS_BORDER;
@@ -200,7 +198,7 @@ namespace AddWindow
 
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk)},
+            {UI::EmptyCell(UI::SIZE_FILL, 23)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &isbn)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &isbnTextBox)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &judul)},
@@ -211,7 +209,7 @@ namespace AddWindow
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &tahunTextBox)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbit)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbitTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk)},
+            {UI::EmptyCell(UI::SIZE_FILL, 23)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &btnAdd)}};
 
         UI::LayoutControls(&window, true);
@@ -269,7 +267,6 @@ namespace TabHistoryDelete
     UI::ComboBox combobox;
     UI::Button btnRestore;
     UI::Button btnTampil;
-    UI::Label labelk;
     UI::ProgressBar progress;
     BookListView listView;
 
@@ -359,7 +356,6 @@ namespace TabHistoryDelete
         btnTampil.commandListener = OnShowClick;
 
         label.SetText(L"Data Belum Dimuat");
-        labelk.SetText(L" ");
 
         btnRestore.SetText(L"Restore");
         btnRestore.commandListener = OnRestoreClick;
@@ -370,7 +366,7 @@ namespace TabHistoryDelete
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnRestore)}};
 
         UI::LayoutControls(&window, true);
@@ -441,7 +437,6 @@ namespace TabFindBooksRange
     UI::Button btnAdd, btnDelete, btnCopyISBN;
     UI::ProgressBar progress;
     UI::Label label;
-    UI::Label labelk;
     BookListView listView;
 
     void DoRefresh()
@@ -516,7 +511,6 @@ namespace TabFindBooksRange
         btnCopyISBN.commandListener = OnCopyISBNClick;
 
         label.SetText(L"Data belum dimuat");
-        labelk.SetText(L" ");
 
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
@@ -533,7 +527,7 @@ namespace TabFindBooksRange
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
              UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
@@ -685,7 +679,6 @@ namespace TabDetailsBooks
     UI::TextBox ISBNTextBox;
     UI::StatusBar statusBar;
     UI::ListView listView;
-    UI::Label labelk;
     UI::Button btnAdd;
     UI::Button btnDelete;
 
@@ -732,8 +725,6 @@ namespace TabDetailsBooks
 
         label.SetText(L"Data Belum Dimuat");
 
-        labelk.SetText(L" ");
-
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
 
@@ -747,8 +738,7 @@ namespace TabDetailsBooks
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnSearch)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label),
-             UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
