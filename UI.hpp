@@ -444,6 +444,7 @@ namespace UI
 
             registerMessageListener(WM_CLOSE, [&] (UI::CallbackParam param) {
                 EnableWindow(parentHwnd, true);
+                SetFocus(parentHwnd);
                 Destroy();
                 return 0;
             });

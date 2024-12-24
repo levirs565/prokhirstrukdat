@@ -87,7 +87,7 @@ namespace AddWindow
         t.end();
 
         std::wstring message = L"Buku Telah berhasil Ditambahkan dalam Waktu " + t.durationStr();
-        MessageBoxW(window.parentHwnd, message.c_str(), L"Success", MB_OK);
+        MessageBoxW(window.hwnd, message.c_str(), L"Success", MB_OK);
         window.CloseModal();
     }
 
