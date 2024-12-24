@@ -76,10 +76,24 @@ namespace AddWindow
     UI::TextBox tahunTextBox;
     UI::TextBox penerbitTextBox;
     UI::Button btnAdd;
+    Book book;
+
+    void DoAdd() {
+        Timer t;
+
+        t.start();
+        hashTable.put(book.isbn, book);
+        tree.insert(std::move(book));
+        t.end();
+
+        std::wstring message = L"Buku Telah berhasil Ditambahkan dalam Waktu " + t.durationStr();
+        MessageBoxW(window.hwnd, message.c_str(), L"Success", MB_OK);
+        window.Destroy();
+    }
 
     LRESULT OnAddClick(UI::CallbackParam param)
     {
-        Book book{
+        book = Book{
             isbnTextBox.getText(),
             judulTextBox.getText(),
             penulisTextBox.getText(),
@@ -170,12 +184,8 @@ namespace AddWindow
             return 0;
         }
 
-        hashTable.put(book.isbn, book);
-        tree.insert(std::move(book));
-
-        MessageBoxW(window.hwnd, L"Buku Telah berhasil Ditambahkan", L"Success", MB_OK);
-        window.Destroy();
-
+        btnAdd.SetEnable(false);
+        WorkerThread::EnqueueWork(DoAdd);
         EnqueueRefreshAllList();
 
         return 0;
