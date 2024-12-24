@@ -337,19 +337,31 @@ namespace TabHistoryDelete
 
     void DoRestore()
     {
-        Timer timer;
-        progress.SetWaiting(false);
-
-        timer.start();
         for (int v : listView.GetSelectedIndex())
         {
+            Book book;
+            book.isbn = listView.GetText(v, 0);
+            book.title = listView.GetText(v, 1);
+
+            RBNode<Book>* node = removeHistoryTree.findNode(book);
+            book = node->value;
+
+            hashTable.put(book.isbn, book);
+            tree.insert(std::move(book));
+
+            removeHistoryTree.removeNode(node);
         }
+
+        DoRefresh();
     }
 
     LRESULT OnRestoreClick(UI::CallbackParam param)
     {
         btnTampil.SetEnable(false);
+        
         WorkerThread::SubmitWork(DoRestore);
+        RefreshAllList();
+
         return 0;
     }
 
@@ -360,7 +372,9 @@ namespace TabHistoryDelete
 
         label.SetText(L"Data Belum Dimuat");
         labelk.SetText(L" ");
+
         btnRestore.SetText(L"Restore");
+        btnRestore.commandListener = OnRestoreClick;
 
         window.controlsLayout = {
             {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
@@ -394,27 +408,23 @@ LRESULT OnAddClick(UI::CallbackParam param)
     return 0;
 }
 
-void RemoveByListViewSelection(UI::ListView* listView)
+void DoRemoveByListViewSelection(UI::ListView *listView)
 {
     for (int v : listView->GetSelectedIndex())
     {
         std::wstring isbn = listView->GetText(v, 0);
-        Book *buku = hashTable.get(isbn);
-        Book duplicatedBook = *buku;
-        if (!tree.remove(*buku))
-            std::cout << "Penghapusan di RBTree gagal" << std::endl;
+        Book buku = *hashTable.get(isbn);
+        if (!tree.remove(buku))
+            MessageBoxA(listView->_window->hwnd, "Penghapusan di RBTree gagal", "Gagal", MB_OK);
 
         if (!hashTable.remove(isbn))
-            std::cout << "Penghapusan di RobinHoodHashTable gagal" << std::endl;
+            MessageBoxA(listView->_window->hwnd, "Penghapusan di RobinHoodHashTable gagal", "Gagal", MB_OK);
 
-        removeHistoryTree.insert(std::move(duplicatedBook));
+        removeHistoryTree.insert(std::move(buku));
     }
-
-    RefreshAllList();
-    TabHistoryDelete::RefreshList();
 }
 
-void CopyISBNByListViewSelection(UI::ListView* listView)
+void CopyISBNByListViewSelection(UI::ListView *listView)
 {
     try
     {
@@ -485,13 +495,20 @@ namespace TabFindBooksRange
         return 0;
     }
 
+    void DoDelete() {
+        DoRemoveByListViewSelection(&listView);
+    }
+
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        RemoveByListViewSelection(&listView);
+        WorkerThread::SubmitWork(DoDelete);
+        RefreshAllList();
+        TabHistoryDelete::RefreshList();
         return 0;
     }
 
-    LRESULT OnCopyISBNClick(UI::CallbackParam param) {
+    LRESULT OnCopyISBNClick(UI::CallbackParam param)
+    {
         CopyISBNByListViewSelection(&listView);
         return 0;
     }
@@ -609,9 +626,15 @@ namespace TabAllBooks
         return 0;
     }
 
+    void DoDelete() {
+        DoRemoveByListViewSelection(&listView);
+    }
+
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        RemoveByListViewSelection(&listView);
+        WorkerThread::SubmitWork(DoDelete);
+        RefreshAllList();
+        TabHistoryDelete::RefreshList();
         return 0;
     }
 
