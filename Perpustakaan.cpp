@@ -2,7 +2,6 @@
 #include "CSVReader.hpp"
 #include "RBTree.hpp"
 #include "Timer.hpp"
-#include <sstream>
 #include "Utils.hpp"
 #include "RobinHoodHashMap.hpp"
 #include "HalfSipHash.h"
@@ -36,7 +35,7 @@ struct BookTitleComparer
 struct BookTitleHasher
 {
     uint64_t seed = 0xe17a1465;
-    
+
     uint64_t hash(const std::wstring &wstr)
     {
         return HalfSipHash_64(wstr.data(), sizeof(wchar_t) * wstr.size(), &seed);
@@ -835,9 +834,7 @@ namespace MainWindow
         }
         progressBar.SetWaiting(false);
 
-        std::wstringstream stream;
-        stream << L"Data dimuat dari CSV dalam " << timer.durationStr();
-        statusBar.SetText(1, stream.str());
+        statusBar.SetText(1, L"Data dimuat dari CSV dalam " + timer.durationStr());
     }
 
     LRESULT OnDestroy(UI::CallbackParam param)
