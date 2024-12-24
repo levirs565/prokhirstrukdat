@@ -87,8 +87,8 @@ namespace AddWindow
         t.end();
 
         std::wstring message = L"Buku Telah berhasil Ditambahkan dalam Waktu " + t.durationStr();
-        MessageBoxW(window.hwnd, message.c_str(), L"Success", MB_OK);
-        window.Destroy();
+        MessageBoxW(window.parentHwnd, message.c_str(), L"Success", MB_OK);
+        window.CloseModal();
     }
 
     LRESULT OnAddClick(UI::CallbackParam param)
@@ -193,6 +193,8 @@ namespace AddWindow
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
+        window.InitModal();
+
         label.SetText(L"Masukkan Data Buku!");
         isbn.SetText(L"ISBN :");
         judul.SetText(L"Judul Buku :");
@@ -879,6 +881,8 @@ namespace MainWindow
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
+        AddWindow::window.parentHwnd = window.hwnd;
+
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &tabs)}};
         window.layouter.paddingBottom = 20;

@@ -434,6 +434,28 @@ namespace UI
         {
             DestroyWindow(hwnd);
         }
+
+        void Close() {
+            CloseWindow(hwnd);
+        }
+
+        void InitModal() {
+            EnableWindow(parentHwnd, false);
+
+            registerMessageListener(WM_CLOSE, [&] (UI::CallbackParam param) {
+                EnableWindow(parentHwnd, true);
+                Destroy();
+                return 0;
+            });
+        }
+
+        void CloseModal() {
+            PostMessage(hwnd, WM_CLOSE, 0, 0);
+        }
+
+        void Focus() {
+            SetFocus(hwnd);
+        }
     };
 
     HWND CreateWindowClass(Window &data);
