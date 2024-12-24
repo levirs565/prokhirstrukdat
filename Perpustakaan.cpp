@@ -272,6 +272,7 @@ namespace TabHistoryDelete
     UI::Button btnTampil;
     UI::ProgressBar progress;
     BookListView listView;
+    std::wstring restoreTime;
 
     void DoRefresh()
     {
@@ -304,9 +305,12 @@ namespace TabHistoryDelete
         progress.SetWaiting(false);
         listView.SetRowCount(removeHistoryTree.count);
 
-        std::wstringstream stream;
-        stream << "Data dimuat dalam " << timer.durationStr();
-        label.SetText(stream.str());
+        std::wstring message = L"Data dimuat dalam " + timer.durationStr(); 
+        if (!restoreTime.empty()) {
+            message = L"Data di restore dalam " + restoreTime + L". " + message;
+            restoreTime = L"";
+        }
+        label.SetText(message);
 
         btnTampil.SetEnable(true);
     }
@@ -325,6 +329,8 @@ namespace TabHistoryDelete
 
     void DoRestore()
     {
+        Timer t;
+        t.start();
         for (int v : listView.GetSelectedIndex())
         {
             Book book;
@@ -339,7 +345,9 @@ namespace TabHistoryDelete
 
             removeHistoryTree.removeNode(node);
         }
+        t.end();
 
+        restoreTime = t.durationStr();
         DoRefresh();
     }
 
@@ -395,20 +403,32 @@ LRESULT OnAddClick(UI::CallbackParam param)
     return 0;
 }
 
-void DoRemoveByListViewSelection(UI::ListView *listView)
+void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progress, std::wstring *message)
 {
-    for (int v : listView->GetSelectedIndex())
+    progress->SetWaiting(true);
+
+    std::vector<Book> selectedBook;
+    for (int v : listView->GetSelectedIndex()) {
+        selectedBook.push_back(*listView->items[v]);
+    }
+
+    Timer t;
+
+    t.start();
+    for (Book& buku : selectedBook)
     {
-        std::wstring isbn = listView->GetText(v, 0);
-        Book buku = *hashTable.get(isbn);
         if (!tree.remove(buku))
             MessageBoxA(listView->_window->hwnd, "Penghapusan di RBTree gagal", "Gagal", MB_OK);
 
-        if (!hashTable.remove(isbn))
+        if (!hashTable.remove(buku.isbn))
             MessageBoxA(listView->_window->hwnd, "Penghapusan di RobinHoodHashTable gagal", "Gagal", MB_OK);
 
         removeHistoryTree.insert(std::move(buku));
     }
+    t.end();
+
+    *message = L"Penghapusan selesai dalam " + t.durationStr() + L". Penghapusan mungkin terlihat lama karena proses mendapatkan pilihan dari UI";
+    progress->SetWaiting(false);
 }
 
 void CopyISBNByListViewSelection(UI::ListView *listView)
@@ -440,6 +460,7 @@ namespace TabFindBooksRange
     UI::Button btnAdd, btnDelete, btnCopyISBN;
     UI::ProgressBar progress;
     UI::Label label;
+    std::wstring deleteMessage;
     BookListView listView;
 
     void DoRefresh()
@@ -462,9 +483,12 @@ namespace TabFindBooksRange
         progress.SetWaiting(false);
         listView.SetRowCount(listView.items.size());
 
-        std::wstringstream stream;
-        stream << "Data ditemukan dalam dalam " << timer.durationStr();
-        label.SetText(stream.str().c_str());
+        std::wstring message = L"Data ditemukan dalam dalam " + timer.durationStr();
+        if (!deleteMessage.empty()) {
+            message = deleteMessage + L". " + message;
+            deleteMessage = L"";
+        }
+        label.SetText(message);
         progress.SetWaiting(false);
         btnFind.SetEnable(true);
     }
@@ -483,7 +507,7 @@ namespace TabFindBooksRange
 
     void DoDelete()
     {
-        DoRemoveByListViewSelection(&listView);
+        DoRemoveByListViewSelection(&listView, &progress, &deleteMessage);
     }
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
@@ -558,7 +582,7 @@ namespace TabAllBooks
     UI::Button btnCopyISBN;
     UI::ProgressBar progress;
     UI::Label label;
-    UI::Label labelk;
+    std::wstring deleteMessage;
     BookListView listView;
 
     void DoRefresh()
@@ -593,9 +617,13 @@ namespace TabAllBooks
         progress.SetWaiting(false);
         listView.SetRowCount(listView.items.size());
 
-        std::wstringstream stream;
-        stream << "Data dimuat dalam " << timer.durationStr();
-        label.SetText(stream.str().c_str());
+        std::wstring message = L"Data dimuat dalam " + timer.durationStr();
+        if (!deleteMessage.empty()) {
+            message = deleteMessage + L". " + message;
+            deleteMessage = L"";
+        }
+
+        label.SetText(message);
 
         button.SetEnable(true);
     }
@@ -614,7 +642,7 @@ namespace TabAllBooks
 
     void DoDelete()
     {
-        DoRemoveByListViewSelection(&listView);
+        DoRemoveByListViewSelection(&listView, &progress, &deleteMessage);
     }
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
@@ -637,8 +665,6 @@ namespace TabAllBooks
         button.commandListener = OnShowClick;
         label.SetText(L"Data belum dimuat");
 
-        labelk.SetText(L" ");
-
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
 
@@ -654,7 +680,7 @@ namespace TabAllBooks
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
              UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
