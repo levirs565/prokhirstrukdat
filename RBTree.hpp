@@ -178,6 +178,8 @@ struct RBTree
         delete z;
         if (!yOrigRed)
             removeFixUp(x);
+
+        count--;
     }
 
     void removeFixUp(NodeType *x)
