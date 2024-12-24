@@ -20,7 +20,7 @@ struct Book
     std::wstring year;
 };
 
-struct BookTileComparer
+struct BookTitleComparer
 {
     int compare(const Book &a, const Book &b)
     {
@@ -54,9 +54,9 @@ struct BookTitleHasher
     }
 };
 
-RBTree<Book, BookTileComparer> tree;
+RBTree<Book, BookTitleComparer> tree;
 RobinHoodHashMap<std::wstring, Book, BookTitleHasher> hashTable;
-RBTree<Book, BookTileComparer> removeHistoryTree;
+RBTree<Book, BookTitleComparer> removeHistoryTree;
 
 void EnqueueRefreshAllList();
 
