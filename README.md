@@ -20,6 +20,11 @@ Berikut adalah penjelasan dari file-file pendukung dari proyek kami.
 - Binary Search Tree
   - Red Black Tree (`RBTree.hpp`)  
     Merupakan BST yang memiliki kemampuan *auto-balance*. Setiap node akan diwarnai dengan warna merah atau hitam. Warna setiap node akan mempengaruhi arah rotasi.
+- Heap
+  - Heap (`Heap.hpp`)
+    Implementasi heap yang dibangun di atas array dinamis. Heap ini membutuhkan fungsi pembanding. Fungsi pembanding biasa akan menghasilkan *min-heap* (nilai paling kecil berada di root). Sedangkan fungsi pembanding yang terbalik akan menghasilkan *max-heap* (nilai paling besar berada di root).
+  - Top K Largest (`TopKLargest.hpp`)
+    Algoritma yang dengan efisien memberikan daftar K elemen terbesar. Implementasi ini menggunakan struktur data Heap dan membutuhkan fungsi pembanding. Fungsi pembanding biasa akan meemberikan daftar K elemen terbesar dimulai dari elemen terkecil. Sedangkan fungsi pembanding terbalik akan memberikan daftar K elemen terkecil dimulai dari elemen terbesar.
 - Hash
   - Fungsi Hash
     - SipHash (`HalfSipHash.h`)  
@@ -38,3 +43,4 @@ Berikut adalah penjelasan dari file-file pendukung dari proyek kami.
   - `CSVReader.hpp`  
     Berisi kelas yang digunakan untuk membaca file CSV baris per baris
 - `Utils.hpp`, berisi fungsi utilitas kecil
+- `TImer.hpp`, berisi utilitas untuk menghitung durasi dari sautu proses
