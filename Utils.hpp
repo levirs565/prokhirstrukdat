@@ -86,7 +86,7 @@ namespace Utils
     std::wstring GetExecutableDirectory()
     {
         std::wstring buffer(4096, 0);
-        DWORD lastIndex = GetModuleFileNameW(nullptr, buffer.data(), 4096);
+        DWORD lastIndex = GetModuleFileNameW(nullptr, const_cast<wchar_t*>(buffer.data()), 4096);
 
         while (buffer[lastIndex] != L'/' && buffer[lastIndex] != L'\\')
             lastIndex--;
