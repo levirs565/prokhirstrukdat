@@ -477,6 +477,16 @@ namespace TabOldBooks
     UI::Button btnAdd, btnDelete, btnCopyISBN;
     BookListView listView;
 
+    void SetEnable(boolean enable) {
+        spinBox.SetEnable(enable);
+        findButton.SetEnable(enable);
+        ignoreInvalidYearCheck.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+        btnCopyISBN.SetEnable(enable);
+        listView.SetEnable(enable);
+    }
+
     void DoFind()
     {
         message.ReplaceLastMessage(L"Memproses data");
@@ -504,16 +514,16 @@ namespace TabOldBooks
         timer.end();
 
         listView.SetRowCount(listSize);
-        findButton.SetEnable(true);
         progress.SetWaiting(false);
         message.ReplaceLastMessage(L"Data ditemukan dalam " + timer.durationStr());
+        SetEnable(true);
     }
 
     void EnqueueRefreshList()
     {
         message.Clear();
         message.AddMessage(L"Menungu antrian tugas");
-        findButton.SetEnable(false);
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoFind);
     }
 
@@ -600,6 +610,16 @@ namespace TabFindBooksRange
     UI::LabelWorkMessage label;
     BookListView listView;
 
+    void SetEnable(boolean enable) {
+        fromTextBox.SetEnable(enable);
+        toTextBox.SetEnable(enable);
+        btnFind.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+        btnCopyISBN.SetEnable(enable);
+        listView.SetEnable(enable);
+    }
+
     void DoRefresh()
     {
         listView.items.clear();
@@ -622,14 +642,15 @@ namespace TabFindBooksRange
 
         label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr());
         progress.SetWaiting(false);
-        btnFind.SetEnable(true);
+        
+        SetEnable(true);
     }
 
     void EnqueueRefreshList()
     {
         label.Clear();
         label.AddMessage(L"Menunggu antrian tugas");
-        btnFind.SetEnable(false);
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
@@ -713,6 +734,15 @@ namespace TabAllBooks
     UI::LabelWorkMessage label;
     BookListView listView;
 
+    void SetEnable(boolean enable) {
+        combobox.SetEnable(enable);
+        button.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+        btnCopyISBN.SetEnable(enable);
+        listView.SetEnable(enable);
+    }
+
     void DoRefresh()
     {
         std::wstring type = combobox.GetSelectedText();
@@ -747,14 +777,14 @@ namespace TabAllBooks
 
         label.ReplaceLastMessage(L"Data dimuat dalam " + timer.durationStr());
 
-        button.SetEnable(true);
+        SetEnable(true);
     }
 
     void EnqueueRefreshList()
     {
         label.Clear();
         label.AddMessage(L"Menunggu antrian tugas");
-        button.SetEnable(false);
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
@@ -955,7 +985,6 @@ namespace MainWindow
                     Utils::stringviewToWstring(reader.data[publisherIndex]),
                     Utils::stringviewToWstring(reader.data[yearIndex])};
                 hashTable.put(book.isbn, book);
-                // hashTable.insert(std::make_pair(book.isbn, book));
                 tree.insert(std::move(book));
             }
             timer.end();
