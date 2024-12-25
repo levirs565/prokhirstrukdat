@@ -414,6 +414,17 @@ LRESULT OnAddClick(UI::CallbackParam param)
     return 0;
 }
 
+void DoRemove(Book &&book, HWND window)
+{
+    if (!tree.remove(book))
+        MessageBoxA(window, "Penghapusan di RBTree gagal", "Gagal", MB_OK);
+
+    if (!hashTable.remove(book.isbn))
+        MessageBoxA(window, "Penghapusan di RobinHoodHashTable gagal", "Gagal", MB_OK);
+
+    removeHistoryTree.insert(std::move(book));
+}
+
 void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progress, UI::LabelWorkMessage *message)
 {
     progress->SetWaiting(true);
@@ -430,13 +441,7 @@ void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progre
     t.start();
     for (Book &buku : selectedBook)
     {
-        if (!tree.remove(buku))
-            MessageBoxA(listView->_window->hwnd, "Penghapusan di RBTree gagal", "Gagal", MB_OK);
-
-        if (!hashTable.remove(buku.isbn))
-            MessageBoxA(listView->_window->hwnd, "Penghapusan di RobinHoodHashTable gagal", "Gagal", MB_OK);
-
-        removeHistoryTree.insert(std::move(buku));
+        DoRemove(std::move(buku), listView->_window->hwnd);
     }
     t.end();
 
@@ -477,7 +482,8 @@ namespace TabOldBooks
     UI::Button btnAdd, btnDelete, btnCopyISBN;
     BookListView listView;
 
-    void SetEnable(boolean enable) {
+    void SetEnable(boolean enable)
+    {
         spinBox.SetEnable(enable);
         findButton.SetEnable(enable);
         ignoreInvalidYearCheck.SetEnable(enable);
@@ -610,7 +616,8 @@ namespace TabFindBooksRange
     UI::LabelWorkMessage label;
     BookListView listView;
 
-    void SetEnable(boolean enable) {
+    void SetEnable(boolean enable)
+    {
         fromTextBox.SetEnable(enable);
         toTextBox.SetEnable(enable);
         btnFind.SetEnable(enable);
@@ -642,7 +649,7 @@ namespace TabFindBooksRange
 
         label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr());
         progress.SetWaiting(false);
-        
+
         SetEnable(true);
     }
 
@@ -734,7 +741,8 @@ namespace TabAllBooks
     UI::LabelWorkMessage label;
     BookListView listView;
 
-    void SetEnable(boolean enable) {
+    void SetEnable(boolean enable)
+    {
         combobox.SetEnable(enable);
         button.SetEnable(enable);
         btnAdd.SetEnable(enable);
@@ -865,6 +873,15 @@ namespace TabDetailsBooks
     UI::ListView listView;
     UI::Button btnAdd;
     UI::Button btnDelete;
+    Book currentBook;
+
+    void SetEnable(boolean enable)
+    {
+        btnSearch.SetEnable(enable);
+        listView.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+    }
 
     void DoRefresh()
     {
@@ -879,31 +896,59 @@ namespace TabDetailsBooks
             if (buku == nullptr)
             {
                 label.ReplaceLastMessage(L"Tidak ditemukan. Membutuhkan waktu " + timer.durationStr());
+                currentBook = {};
             }
             else
             {
-                listView.SetText(0, 1, buku->isbn);
-                listView.SetText(1, 1, buku->title);
-                listView.SetText(2, 1, buku->author);
-                listView.SetText(3, 1, buku->publisher);
-                listView.SetText(4, 1, buku->year);
                 label.ReplaceLastMessage(L"Ditemukan dalam waktu " + timer.durationStr());
+                currentBook = *buku;
             }
+
+            listView.SetText(0, 1, currentBook.isbn);
+            listView.SetText(1, 1, currentBook.title);
+            listView.SetText(2, 1, currentBook.author);
+            listView.SetText(3, 1, currentBook.publisher);
+            listView.SetText(4, 1, currentBook.year);
         }
-        btnSearch.SetEnable(true);
+        SetEnable(true);
     }
 
     void EnqueueRefresh()
     {
         label.Clear();
         label.AddMessage(L"Menunggu antrian tugas");
-        btnSearch.SetEnable(false);
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnFindClick(UI::CallbackParam)
     {
         EnqueueRefresh();
+        return 0;
+    }
+
+    void DoDelete()
+    {
+        label.ReplaceLastMessage(L"Menghapus data");
+        Timer t;
+
+        t.start();
+        DoRemove(std::move(currentBook), window.hwnd);
+        t.end();
+
+        label.ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr());
+        label.AddMessage(L"Memuat data");
+    }
+
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        if (currentBook.isbn.empty())
+            return 0;
+
+        WorkerThread::EnqueueWork(DoDelete);
+        EnqueueRefreshAllList();
+        TabHistoryDelete::EnqueueRefreshList();
+
         return 0;
     }
 
@@ -918,6 +963,7 @@ namespace TabDetailsBooks
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus Buku");
+        btnDelete.commandListener = OnDeleteClick;
 
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
