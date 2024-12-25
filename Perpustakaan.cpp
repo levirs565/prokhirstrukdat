@@ -474,6 +474,7 @@ namespace TabOldBooks
     UI::ProgressBar progress;
     UI::LabelWorkMessage message;
     UI::CheckBox ignoreInvalidYearCheck;
+    UI::Button btnAdd, btnDelete, btnCopyISBN;
     BookListView listView;
 
     void DoFind()
@@ -522,6 +523,25 @@ namespace TabOldBooks
         return 0;
     }
 
+    void DoDelete()
+    {
+        DoRemoveByListViewSelection(&listView, &progress, &message);
+    }
+
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        WorkerThread::EnqueueWork(DoDelete);
+        EnqueueRefreshAllList();
+        TabHistoryDelete::EnqueueRefreshList();
+        return 0;
+    }
+
+    LRESULT OnCopyISBNClick(UI::CallbackParam param)
+    {
+        CopyISBNByListViewSelection(&listView);
+        return 0;
+    }
+
     LRESULT OnCreate(UI::CallbackParam param)
     {
         label.SetText(L"Jumlah: ");
@@ -531,6 +551,15 @@ namespace TabOldBooks
 
         ignoreInvalidYearCheck.SetText(L"Abaikan Buku dengan Tahun Tidak Valid");
 
+        btnCopyISBN.SetText(L"Salin ISBN");
+        btnCopyISBN.commandListener = OnCopyISBNClick;
+
+        btnAdd.SetText(L"Tambahkan Buku");
+        btnAdd.commandListener = OnAddClick;
+
+        btnDelete.SetText(L"Hapus Buku");
+        btnDelete.commandListener = OnDeleteClick;
+
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &label),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &spinBox),
@@ -538,7 +567,11 @@ namespace TabOldBooks
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &findButton)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &message)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
 
         UI::LayoutControls(&window, true);
 
