@@ -8,6 +8,7 @@
 #include "MurmurHash3.h"
 #include "unordered_map"
 #include "WorkerThread.hpp"
+#include "TopKLargest.hpp"
 #include <stdlib.h>
 
 struct Book
@@ -29,6 +30,18 @@ struct BookTitleComparer
             return compare;
 
         return Utils::CompareWStringHalfInsensitive(a.isbn, b.isbn);
+    }
+};
+
+struct BookYearCompareReversed
+{
+    int compare(Book *a, Book *b)
+    {
+        int compare = Utils::CompareWStringHalfInsensitive(a->year, b->year);
+        if (compare != 0)
+            return -compare;
+
+        return -Utils::CompareWStringHalfInsensitive(a->isbn, b->isbn);
     }
 };
 
@@ -66,7 +79,8 @@ namespace AddWindow
     UI::Button btnAdd;
     Book book;
 
-    void DoAdd() {
+    void DoAdd()
+    {
         Timer t;
 
         t.start();
@@ -190,12 +204,6 @@ namespace AddWindow
         tahun.SetText(L"Tahun Terbit :");
         penerbit.SetText(L"Penerbit :");
 
-        isbnTextBox._dwStyle |= WS_BORDER;
-        judulTextBox._dwStyle |= WS_BORDER;
-        penulisTextBox._dwStyle |= WS_BORDER;
-        tahunTextBox._dwStyle |= WS_BORDER;
-        penerbitTextBox._dwStyle |= WS_BORDER;
-
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
 
@@ -305,8 +313,9 @@ namespace TabHistoryDelete
         progress.SetWaiting(false);
         listView.SetRowCount(removeHistoryTree.count);
 
-        std::wstring message = L"Data dimuat dalam " + timer.durationStr(); 
-        if (!restoreTime.empty()) {
+        std::wstring message = L"Data dimuat dalam " + timer.durationStr();
+        if (!restoreTime.empty())
+        {
             message = L"Data di restore dalam " + restoreTime + L". " + message;
             restoreTime = L"";
         }
@@ -408,14 +417,15 @@ void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progre
     progress->SetWaiting(true);
 
     std::vector<Book> selectedBook;
-    for (int v : listView->GetSelectedIndex()) {
+    for (int v : listView->GetSelectedIndex())
+    {
         selectedBook.push_back(*listView->items[v]);
     }
 
     Timer t;
 
     t.start();
-    for (Book& buku : selectedBook)
+    for (Book &buku : selectedBook)
     {
         if (!tree.remove(buku))
             MessageBoxA(listView->_window->hwnd, "Penghapusan di RBTree gagal", "Gagal", MB_OK);
@@ -451,6 +461,95 @@ void CopyISBNByListViewSelection(UI::ListView *listView)
     }
 }
 
+namespace TabOldBooks
+{
+    UI::Label label;
+    UI::Window window;
+    UI::SpinBox spinBox;
+    UI::Button findButton;
+    UI::ProgressBar progress;
+    UI::Label messageLabel;
+    UI::CheckBox ignoreInvalidYearCheck;
+    BookListView listView;
+
+    void DoFind()
+    {
+        listView.SetRowCount(0);
+        progress.SetWaiting(true);
+
+        int count = spinBox.GetValue();
+        bool ignoreInvalid = ignoreInvalidYearCheck.GetCheck() == BST_CHECKED;
+
+        Timer timer;
+        timer.start();
+        TopKLargest<Book *, BookYearCompareReversed> topK(count);
+        tree.preorder(tree.root, [&](RBNode<Book> *node)
+                      {
+            if (node->value.year.size() != 4 && ignoreInvalid) return;
+            topK.add(&node->value); });
+
+        int listSize = topK.getCount();
+        listView.items.resize(listSize);
+
+        for (int i = listSize - 1; i >= 0; i--)
+        {
+            listView.items[i] = topK.removeTop();
+        }
+        timer.end();
+
+        listView.SetRowCount(listSize);
+        findButton.SetEnable(true);
+        progress.SetWaiting(false);
+        messageLabel.SetText(L"Data ditemukan dalam " + timer.durationStr());
+    }
+
+    void EnqueueRefreshList()
+    {
+        findButton.SetEnable(false);
+        WorkerThread::EnqueueWork(DoFind);
+    }
+
+    LRESULT OnFindClick(UI::CallbackParam param)
+    {
+        EnqueueRefreshList();
+        return 0;
+    }
+
+    LRESULT OnCreate(UI::CallbackParam param)
+    {
+        messageLabel.SetText(L"Data Belum Dimuat");
+        label.SetText(L"Jumlah: ");
+
+        findButton.SetText(L"Temukan");
+        findButton.commandListener = OnFindClick;
+
+        ignoreInvalidYearCheck.SetText(L"Abaikan Buku dengan Tahun Tidak Valid");
+
+        window.controlsLayout = {
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &label),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &spinBox),
+             UI::ControlCell(250, UI::SIZE_DEFAULT, &ignoreInvalidYearCheck),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &findButton)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &messageLabel)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
+
+        UI::LayoutControls(&window, true);
+
+        ignoreInvalidYearCheck.SetCheck(BST_CHECKED);
+        spinBox.SetRange(0, 1000);
+        spinBox.SetValue(100);
+
+        return 0;
+    };
+
+    void Init()
+    {
+        window.title = L"TabOldBooks";
+        window.registerMessageListener(WM_CREATE, OnCreate);
+    }
+};
+
 namespace TabFindBooksRange
 {
     UI::Window window;
@@ -484,7 +583,8 @@ namespace TabFindBooksRange
         listView.SetRowCount(listView.items.size());
 
         std::wstring message = L"Data ditemukan dalam dalam " + timer.durationStr();
-        if (!deleteMessage.empty()) {
+        if (!deleteMessage.empty())
+        {
             message = deleteMessage + L". " + message;
             deleteMessage = L"";
         }
@@ -528,9 +628,6 @@ namespace TabFindBooksRange
     {
         fromLabel.SetText(L"Dari");
         toLabel.SetText(L"Ke");
-
-        fromTextBox._dwStyle |= WS_BORDER;
-        toTextBox._dwStyle |= WS_BORDER;
 
         btnFind.SetText(L"Cari");
         btnFind.commandListener = OnFindClick;
@@ -618,7 +715,8 @@ namespace TabAllBooks
         listView.SetRowCount(listView.items.size());
 
         std::wstring message = L"Data dimuat dalam " + timer.durationStr();
-        if (!deleteMessage.empty()) {
+        if (!deleteMessage.empty())
+        {
             message = deleteMessage + L". " + message;
             deleteMessage = L"";
         }
@@ -749,7 +847,6 @@ namespace TabDetailsBooks
     LRESULT onCreate(UI::CallbackParam param)
     {
         ISBNlabel.SetText(L"Cari Berdasarkan ISBN :");
-        ISBNTextBox._dwStyle |= WS_BORDER;
 
         btnSearch.SetText(L"Cari");
         btnSearch.commandListener = OnFindClick;
@@ -865,6 +962,9 @@ namespace MainWindow
         TabFindBooksRange::Init();
         tabs.AddPage(L"Temukan Buku dalam Rentang", &TabFindBooksRange::window);
 
+        TabOldBooks::Init();
+        tabs.AddPage(L"Buku Tertua", &TabOldBooks::window);
+
         TabDetailsBooks::Init();
         tabs.AddPage(L"Details Buku", &TabDetailsBooks::window);
 
@@ -872,8 +972,8 @@ namespace MainWindow
         tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
         WorkerThread::EnqueueWork(DoLoad);
-        TabAllBooks::EnqueueRefreshList();
-        TabFindBooksRange::EnqueueRefreshList();
+        EnqueueRefreshAllList();
+        TabHistoryDelete::EnqueueRefreshList();
 
         return 0;
     }
@@ -892,6 +992,7 @@ void EnqueueRefreshAllList()
 {
     TabAllBooks::EnqueueRefreshList();
     TabFindBooksRange::EnqueueRefreshList();
+    TabOldBooks::EnqueueRefreshList();
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)

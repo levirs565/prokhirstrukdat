@@ -16,6 +16,7 @@
 #include <numeric>
 #include <limits>
 #include <stdexcept>
+#include <iostream>
 
 namespace UI
 {
@@ -298,17 +299,17 @@ namespace UI
      * @param w, h Ukuran dari kontrol. Akan diberikan ke layouter.
      *             Jika SIZE_FILL maka ukuran kontrol akan memenuhi ruang yang ada
      *             Jika SIZE_DEFAULT maka ukuran kontrol akan diisi nilai default
-    */
+     */
     LayoutCellData ControlCell(LONG w, LONG h, Control *control)
     {
         return LayoutCellData{w, h, control};
     }
 
     /**
-     * Membuat sebuah sel koosng baru 
+     * Membuat sebuah sel koosng baru
      *
      * @param w, h @see ControlCell
-    */
+     */
     LayoutCellData EmptyCell(LONG w, LONG h)
     {
         return LayoutCellData{w, h};
@@ -411,7 +412,8 @@ namespace UI
             _msgListeners.emplace(message, callback);
         }
 
-        void registerCommandListener(UINT_PTR cmd, CallbackType callback) {
+        void registerCommandListener(UINT_PTR cmd, CallbackType callback)
+        {
             _cmdListeners.emplace(cmd, callback);
         }
 
@@ -435,26 +437,30 @@ namespace UI
             DestroyWindow(hwnd);
         }
 
-        void Close() {
+        void Close()
+        {
             CloseWindow(hwnd);
         }
 
-        void InitModal() {
+        void InitModal()
+        {
             EnableWindow(parentHwnd, false);
 
-            registerMessageListener(WM_CLOSE, [&] (UI::CallbackParam param) {
+            registerMessageListener(WM_CLOSE, [&](UI::CallbackParam param)
+                                    {
                 EnableWindow(parentHwnd, true);
                 SetFocus(parentHwnd);
                 Destroy();
-                return 0;
-            });
+                return 0; });
         }
 
-        void CloseModal() {
+        void CloseModal()
+        {
             PostMessage(hwnd, WM_CLOSE, 0, 0);
         }
 
-        void Focus() {
+        void Focus()
+        {
             SetFocus(hwnd);
         }
     };
@@ -585,7 +591,7 @@ namespace UI
 
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
-            _dwStyle |= ES_AUTOHSCROLL;
+            _dwStyle |= ES_AUTOHSCROLL | WS_BORDER;
             _className = WC_EDITW;
             Control::Create(window, hParent, pos, size);
             ApplyDefaultFont();
@@ -645,6 +651,83 @@ namespace UI
         }
     };
 
+    struct UpDown : Control
+    {
+        void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
+        {
+            _className = UPDOWN_CLASSW;
+            Control::Create(window, hParent, pos, size);
+        }
+
+        SIZE GetDefaultSize() override
+        {
+            return {15, 23};
+        }
+    };
+
+    struct SpinBox : Control
+    {
+        TextBox _textBox;
+        UpDown _upDown;
+
+        LRESULT _OnTextBoxKillFocus(UI::CallbackParam param) {
+           std::wcout << _textBox.getText() << std::endl;
+            return 0;
+        }
+
+        void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
+        {
+            _className = WC_STATICW;
+            Control::Create(window, hParent, pos, size);
+
+            _textBox._dwStyle |= ES_NUMBER;
+            _textBox.Create(window, hwnd, {0, 0}, _textBox.GetDefaultSize());
+
+            _upDown._dwStyle |= UDS_SETBUDDYINT | UDS_ARROWKEYS;
+            _upDown.Create(window, hwnd, {_textBox.GetDefaultSize().cx + 1, 0}, _upDown.GetDefaultSize());
+
+            SendMessageW(_upDown.hwnd, UDM_SETBUDDY, reinterpret_cast<WPARAM>(_textBox.hwnd), 0);
+        }
+
+        void SetRange(int from, int to) {
+            SendMessageW(_upDown.hwnd, UDM_SETRANGE32, static_cast<WPARAM>(from), static_cast<LPARAM>(to));
+        }
+
+        void SetValue(int value) {
+            SendMessageW(_upDown.hwnd, UDM_SETPOS32, 0, static_cast<LPARAM>(value));
+        }
+
+        int GetValue() {
+            bool invalid;
+            int value = static_cast<int>(SendMessageW(_upDown.hwnd, UDM_GETPOS32, 0, reinterpret_cast<LPARAM>(&invalid)));
+            if (invalid) {
+                SetValue(value);
+            }
+            return value;
+        }
+
+        SIZE GetDefaultSize() override
+        {
+            SIZE upDownSz = _upDown.GetDefaultSize();
+            SIZE textBoxSz = _textBox.GetDefaultSize();
+            return {upDownSz.cx + 1 + textBoxSz.cx, std::max(upDownSz.cy, textBoxSz.cy)};
+        }
+
+        void UpdatePosDefer(HDWP hDefer, POINT pos, SIZE size) override
+        {
+            assert(hwnd != 0);
+            Control::UpdatePosDefer(hDefer, pos, size);
+
+            LONG upDownWidth = _upDown.GetDefaultSize().cx;
+            LONG textBoxWidth = size.cx - upDownWidth - 1;
+
+            HDWP hdwp = BeginDeferWindowPos(2);
+            _textBox.UpdatePosDefer(hdwp, {0, 0}, {textBoxWidth, size.cy});
+            _upDown.UpdatePosDefer(hdwp, {textBoxWidth + 1, 0}, {upDownWidth, size.cy});
+            EndDeferWindowPos(hdwp);
+        }
+    };
+
     /**
      * Kontrol berupa tombol
      */
@@ -678,6 +761,22 @@ namespace UI
             _setupTitle = text;
             if (hwnd != 0)
                 SetWindowTextW(hwnd, text.c_str());
+        }
+    };
+
+    struct CheckBox : Button {
+        void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
+        {
+            _dwStyle |= BS_AUTOCHECKBOX;
+            Button::Create(window, hParent, pos, size);
+        }
+
+        int GetCheck() {
+            return SendMessageW(hwnd, BM_GETCHECK, 0, 0);
+        }
+
+        void SetCheck(int state) {
+            SendMessageW(hwnd, BM_SETCHECK, static_cast<WPARAM>(state), 0);
         }
     };
 
@@ -1224,8 +1323,9 @@ namespace UI
                 const LayoutCellData &controlCell = row[j];
                 LayouterCell &cell = cells[j];
 
-                if (controlCell.control == nullptr) continue;
-        
+                if (controlCell.control == nullptr)
+                    continue;
+
                 if (create)
                 {
                     controlCell.control->Create(window, 0, cell.pos, cell.size);
