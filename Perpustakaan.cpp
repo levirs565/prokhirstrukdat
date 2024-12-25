@@ -487,7 +487,7 @@ namespace TabOldBooks
         listView.SetEnable(enable);
     }
 
-    void DoFind()
+    void DoRefresh()
     {
         message.ReplaceLastMessage(L"Memproses data");
         listView.SetRowCount(0);
@@ -524,7 +524,7 @@ namespace TabOldBooks
         message.Clear();
         message.AddMessage(L"Menungu antrian tugas");
         SetEnable(false);
-        WorkerThread::EnqueueWork(DoFind);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnFindClick(UI::CallbackParam param)
@@ -866,7 +866,7 @@ namespace TabDetailsBooks
     UI::Button btnAdd;
     UI::Button btnDelete;
 
-    void DoFind()
+    void DoRefresh()
     {
         label.ReplaceLastMessage(L"Mencari buku sesuai dengan ISBN");
         Timer timer;
@@ -898,7 +898,7 @@ namespace TabDetailsBooks
         label.Clear();
         label.AddMessage(L"Menunggu antrian tugas");
         btnSearch.SetEnable(false);
-        DoFind();
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnFindClick(UI::CallbackParam)
