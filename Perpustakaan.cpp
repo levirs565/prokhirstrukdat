@@ -60,6 +60,8 @@ RobinHoodHashMap<std::wstring, Book, BookTitleHasher> hashTable;
 RBTree<Book, BookTitleComparer> removeHistoryTree;
 
 void EnqueueRefreshAllList();
+const std::wstring waitQueueMessage = L"Menunggu antrian tugas";
+const std::wstring loadDataMessage = L"Memuat data";
 
 namespace AddWindow
 {
@@ -412,9 +414,10 @@ LRESULT OnAddClick(UI::CallbackParam param)
     return 0;
 }
 
-void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progress, std::wstring *message)
+void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progress, UI::LabelWorkMessage *message)
 {
     progress->SetWaiting(true);
+    message->ReplaceLastMessage(L"Menghapus data");
 
     std::vector<Book> selectedBook;
     for (int v : listView->GetSelectedIndex())
@@ -437,7 +440,8 @@ void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progre
     }
     t.end();
 
-    *message = L"Penghapusan selesai dalam " + t.durationStr() + L". Penghapusan mungkin terlihat lama karena proses mendapatkan pilihan dari UI";
+    message->ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr() + L". Penghapusan mungkin terlihat lama karena proses mendapatkan pilihan dari UI");
+    message->AddMessage(L"Menunggu antrian tugas");
     progress->SetWaiting(false);
 }
 
@@ -468,12 +472,13 @@ namespace TabOldBooks
     UI::SpinBox spinBox;
     UI::Button findButton;
     UI::ProgressBar progress;
-    UI::Label messageLabel;
+    UI::LabelWorkMessage message;
     UI::CheckBox ignoreInvalidYearCheck;
     BookListView listView;
 
     void DoFind()
     {
+        message.ReplaceLastMessage(L"Memproses data");
         listView.SetRowCount(0);
         progress.SetWaiting(true);
 
@@ -500,11 +505,13 @@ namespace TabOldBooks
         listView.SetRowCount(listSize);
         findButton.SetEnable(true);
         progress.SetWaiting(false);
-        messageLabel.SetText(L"Data ditemukan dalam " + timer.durationStr());
+        message.ReplaceLastMessage(L"Data ditemukan dalam " + timer.durationStr());
     }
 
     void EnqueueRefreshList()
     {
+        message.Clear();
+        message.AddMessage(L"Menungu antrian tugas");
         findButton.SetEnable(false);
         WorkerThread::EnqueueWork(DoFind);
     }
@@ -517,7 +524,6 @@ namespace TabOldBooks
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
-        messageLabel.SetText(L"Data Belum Dimuat");
         label.SetText(L"Jumlah: ");
 
         findButton.SetText(L"Temukan");
@@ -531,7 +537,7 @@ namespace TabOldBooks
              UI::ControlCell(250, UI::SIZE_DEFAULT, &ignoreInvalidYearCheck),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &findButton)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &messageLabel)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &message)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)}};
 
         UI::LayoutControls(&window, true);
@@ -558,8 +564,7 @@ namespace TabFindBooksRange
     UI::Button btnFind;
     UI::Button btnAdd, btnDelete, btnCopyISBN;
     UI::ProgressBar progress;
-    UI::Label label;
-    std::wstring deleteMessage;
+    UI::LabelWorkMessage label;
     BookListView listView;
 
     void DoRefresh()
@@ -567,7 +572,7 @@ namespace TabFindBooksRange
         listView.items.clear();
         listView.SetRowCount(0);
 
-        label.SetText(L"Menemukan data");
+        label.ReplaceLastMessage(L"Menemukan data");
         Timer timer;
 
         progress.SetWaiting(true);
@@ -582,19 +587,15 @@ namespace TabFindBooksRange
         progress.SetWaiting(false);
         listView.SetRowCount(listView.items.size());
 
-        std::wstring message = L"Data ditemukan dalam dalam " + timer.durationStr();
-        if (!deleteMessage.empty())
-        {
-            message = deleteMessage + L". " + message;
-            deleteMessage = L"";
-        }
-        label.SetText(message);
+        label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr());
         progress.SetWaiting(false);
         btnFind.SetEnable(true);
     }
 
     void EnqueueRefreshList()
     {
+        label.Clear();
+        label.AddMessage(L"Menunggu antrian tugas");
         btnFind.SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -607,7 +608,7 @@ namespace TabFindBooksRange
 
     void DoDelete()
     {
-        DoRemoveByListViewSelection(&listView, &progress, &deleteMessage);
+        DoRemoveByListViewSelection(&listView, &progress, &label);
     }
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
@@ -634,8 +635,6 @@ namespace TabFindBooksRange
 
         btnCopyISBN.SetText(L"Salin ISBN");
         btnCopyISBN.commandListener = OnCopyISBNClick;
-
-        label.SetText(L"Data belum dimuat");
 
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
@@ -678,8 +677,7 @@ namespace TabAllBooks
     UI::Button btnDelete;
     UI::Button btnCopyISBN;
     UI::ProgressBar progress;
-    UI::Label label;
-    std::wstring deleteMessage;
+    UI::LabelWorkMessage label;
     BookListView listView;
 
     void DoRefresh()
@@ -689,8 +687,8 @@ namespace TabAllBooks
         listView.items.resize(tree.count);
         listView.SetRowCount(0);
 
-        label.SetText(L"Memuat data");
         Timer timer;
+        label.ReplaceLastMessage(L"Memuat data");
 
         progress.SetWaiting(true);
 
@@ -714,20 +712,15 @@ namespace TabAllBooks
         progress.SetWaiting(false);
         listView.SetRowCount(listView.items.size());
 
-        std::wstring message = L"Data dimuat dalam " + timer.durationStr();
-        if (!deleteMessage.empty())
-        {
-            message = deleteMessage + L". " + message;
-            deleteMessage = L"";
-        }
-
-        label.SetText(message);
+        label.ReplaceLastMessage(L"Data dimuat dalam " + timer.durationStr());
 
         button.SetEnable(true);
     }
 
     void EnqueueRefreshList()
     {
+        label.Clear();
+        label.AddMessage(L"Menunggu antrian tugas");
         button.SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -740,7 +733,7 @@ namespace TabAllBooks
 
     void DoDelete()
     {
-        DoRemoveByListViewSelection(&listView, &progress, &deleteMessage);
+        DoRemoveByListViewSelection(&listView, &progress, &label);
     }
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
@@ -761,7 +754,6 @@ namespace TabAllBooks
     {
         button.SetText(L"Tampilkan");
         button.commandListener = OnShowClick;
-        label.SetText(L"Data belum dimuat");
 
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
@@ -802,7 +794,7 @@ namespace TabAllBooks
 namespace TabDetailsBooks
 {
     UI::Window window;
-    UI::Label label;
+    UI::LabelWorkMessage label;
     UI::Label ISBNlabel;
     UI::Button btnSearch;
     UI::TextBox ISBNTextBox;
@@ -813,7 +805,7 @@ namespace TabDetailsBooks
 
     void DoFind()
     {
-        label.SetText(L"Mencari buku sesuai dengan ISBN");
+        label.ReplaceLastMessage(L"Mencari buku sesuai dengan ISBN");
         Timer timer;
 
         {
@@ -823,7 +815,7 @@ namespace TabDetailsBooks
             timer.end();
             if (buku == nullptr)
             {
-                label.SetText(L"TIdak Di Temukan");
+                label.ReplaceLastMessage(L"Tidak ditemukan. Membutuhkan waktu " + timer.durationStr());
             }
             else
             {
@@ -832,15 +824,23 @@ namespace TabDetailsBooks
                 listView.SetText(2, 1, buku->author);
                 listView.SetText(3, 1, buku->publisher);
                 listView.SetText(4, 1, buku->year);
+                label.ReplaceLastMessage(L"Ditemukan dalam waktu " + timer.durationStr());
             }
         }
         btnSearch.SetEnable(true);
     }
 
-    LRESULT OnFindClick(UI::CallbackParam)
+    void EnqueueRefresh()
     {
+        label.Clear();
+        label.AddMessage(L"Menunggu antrian tugas");
         btnSearch.SetEnable(false);
         DoFind();
+    }
+
+    LRESULT OnFindClick(UI::CallbackParam)
+    {
+        EnqueueRefresh();
         return 0;
     }
 
@@ -850,8 +850,6 @@ namespace TabDetailsBooks
 
         btnSearch.SetText(L"Cari");
         btnSearch.commandListener = OnFindClick;
-
-        label.SetText(L"Data Belum Dimuat");
 
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
@@ -993,6 +991,7 @@ void EnqueueRefreshAllList()
     TabAllBooks::EnqueueRefreshList();
     TabFindBooksRange::EnqueueRefreshList();
     TabOldBooks::EnqueueRefreshList();
+    TabDetailsBooks::EnqueueRefresh();
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)

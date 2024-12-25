@@ -649,6 +649,58 @@ namespace UI
             if (hwnd != 0)
                 SetWindowTextW(hwnd, text.c_str());
         }
+
+        const std::wstring &GetText()
+        {
+            return _setupTitle;
+        }
+    };
+
+    struct LabelWorkMessage : Label
+    {
+        std::vector<std::wstring> _messages;
+
+        LabelWorkMessage()
+        {
+            _UpdateText();
+        }
+
+        void _UpdateText()
+        {
+            if (_messages.size() == 0)
+            {
+                SetText(L"...");
+            }
+            else
+            {
+                std::wstring text;
+                for (size_t i = 0; i < _messages.size(); i++)
+                {
+                    if (i > 0)
+                        text += L". ";
+                    text += _messages[i];
+                }
+                SetText(text);
+            }
+        }
+
+        void Clear()
+        {
+            _messages.clear();
+            _UpdateText();
+        }
+
+        void AddMessage(const std::wstring &text)
+        {
+            _messages.push_back(text);
+            _UpdateText();
+        }
+
+        void ReplaceLastMessage(const std::wstring &text)
+        {
+            _messages[_messages.size() - 1] = text;
+            _UpdateText();
+        }
     };
 
     struct UpDown : Control
@@ -670,8 +722,9 @@ namespace UI
         TextBox _textBox;
         UpDown _upDown;
 
-        LRESULT _OnTextBoxKillFocus(UI::CallbackParam param) {
-           std::wcout << _textBox.getText() << std::endl;
+        LRESULT _OnTextBoxKillFocus(UI::CallbackParam param)
+        {
+            std::wcout << _textBox.getText() << std::endl;
             return 0;
         }
 
@@ -689,18 +742,22 @@ namespace UI
             SendMessageW(_upDown.hwnd, UDM_SETBUDDY, reinterpret_cast<WPARAM>(_textBox.hwnd), 0);
         }
 
-        void SetRange(int from, int to) {
+        void SetRange(int from, int to)
+        {
             SendMessageW(_upDown.hwnd, UDM_SETRANGE32, static_cast<WPARAM>(from), static_cast<LPARAM>(to));
         }
 
-        void SetValue(int value) {
+        void SetValue(int value)
+        {
             SendMessageW(_upDown.hwnd, UDM_SETPOS32, 0, static_cast<LPARAM>(value));
         }
 
-        int GetValue() {
+        int GetValue()
+        {
             bool invalid;
             int value = static_cast<int>(SendMessageW(_upDown.hwnd, UDM_GETPOS32, 0, reinterpret_cast<LPARAM>(&invalid)));
-            if (invalid) {
+            if (invalid)
+            {
                 SetValue(value);
             }
             return value;
@@ -764,18 +821,21 @@ namespace UI
         }
     };
 
-    struct CheckBox : Button {
+    struct CheckBox : Button
+    {
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
             _dwStyle |= BS_AUTOCHECKBOX;
             Button::Create(window, hParent, pos, size);
         }
 
-        int GetCheck() {
+        int GetCheck()
+        {
             return SendMessageW(hwnd, BM_GETCHECK, 0, 0);
         }
 
-        void SetCheck(int state) {
+        void SetCheck(int state)
+        {
             SendMessageW(hwnd, BM_SETCHECK, static_cast<WPARAM>(state), 0);
         }
     };
