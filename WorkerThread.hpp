@@ -2,11 +2,13 @@
 #include "SPSCQueue.hpp"
 #include <functional>
 #include <iostream>
+#include <atomic>
 
 namespace WorkerThread {
     TP_CALLBACK_ENVIRON _environment;
     PTP_POOL _pool = nullptr;
     PTP_CLEANUP_GROUP _cleanupGroup = nullptr;
+    std::atomic<int> _workCount;
 
     void Init() {
         InitializeThreadpoolEnvironment(&_environment);
@@ -35,11 +37,13 @@ namespace WorkerThread {
 
     size_t cnt = 0;
     VOID CALLBACK _WorkCallback(PTP_CALLBACK_INSTANCE instance, PVOID context, PTP_WORK work) {
+        _workCount++;
         std::cout << cnt << ". " << _queue.count() << std::endl;
         WorkerType worker = _queue.pop(); 
         worker();
         std::cout << cnt << ". " << _queue.count() << std::endl;
         cnt++;
+        _workCount--;
     }
 
     void EnqueueWork(WorkerType&& worker) {
@@ -47,6 +51,10 @@ namespace WorkerThread {
 
         PTP_WORK work = CreateThreadpoolWork(_WorkCallback, nullptr, &_environment);
         SubmitThreadpoolWork(work);
+    }
+
+    bool IsWorking() {
+        return !_queue.empty() || _workCount > 0;
     }
 
     void Destroy() {

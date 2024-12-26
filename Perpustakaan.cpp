@@ -1062,6 +1062,17 @@ namespace MainWindow
         statusBar.SetText(1, L"Data dimuat dari CSV dalam " + timer.durationStr());
     }
 
+    LRESULT OnClose(UI::CallbackParam param) {
+        if (!WorkerThread::IsWorking()) {
+            window.Destroy();
+            return 0;
+        }
+
+        MessageBoxW(window.hwnd, L"Menunggu tugas selesai", L"Tunggu Dulu", MB_OK);
+
+        return 0;
+    }
+
     LRESULT OnDestroy(UI::CallbackParam param)
     {
         WorkerThread::Destroy();
@@ -1110,6 +1121,7 @@ namespace MainWindow
         window.quitWhenClose = true;
         window.title = L"MainWindow";
         window.registerMessageListener(WM_CREATE, OnCreate);
+        window.registerMessageListener(WM_CLOSE, OnClose);
         window.registerMessageListener(WM_DESTROY, OnDestroy);
         UI::ShowWindowClass(window);
     }
