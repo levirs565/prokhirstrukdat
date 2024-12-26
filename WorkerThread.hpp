@@ -4,13 +4,15 @@
 #include <iostream>
 #include <atomic>
 
-namespace WorkerThread {
+namespace WorkerThread
+{
     TP_CALLBACK_ENVIRON _environment;
     PTP_POOL _pool = nullptr;
     PTP_CLEANUP_GROUP _cleanupGroup = nullptr;
     std::atomic<int> _workCount;
 
-    void Init() {
+    void Init()
+    {
         InitializeThreadpoolEnvironment(&_environment);
 
         _pool = CreateThreadpool(nullptr);
@@ -22,7 +24,6 @@ namespace WorkerThread {
         if (!SetThreadpoolThreadMinimum(_pool, 1))
             throw Winapi::Error("SetThreadpoolThreadMinimum failed");
 
-        
         _cleanupGroup = CreateThreadpoolCleanupGroup();
 
         if (_cleanupGroup == nullptr)
@@ -35,29 +36,33 @@ namespace WorkerThread {
     using WorkerType = std::function<void()>;
     SPSCQueue<WorkerType> _queue(128);
 
-    size_t cnt = 0;
-    VOID CALLBACK _WorkCallback(PTP_CALLBACK_INSTANCE instance, PVOID context, PTP_WORK work) {
-        _workCount++;
-        std::cout << cnt << ". " << _queue.count() << std::endl;
-        WorkerType worker = _queue.pop(); 
+    // size_t cnt = 0;
+    VOID CALLBACK _WorkCallback(PTP_CALLBACK_INSTANCE instance, PVOID context, PTP_WORK work)
+    {
+        // std::cout << cnt << ". " << _queue.count() << std::endl;
+        WorkerType worker = _queue.pop();
         worker();
-        std::cout << cnt << ". " << _queue.count() << std::endl;
-        cnt++;
+        // std::cout << cnt << ". " << _queue.count() << std::endl;
+        // cnt++;
         _workCount--;
     }
 
-    void EnqueueWork(WorkerType&& worker) {
+    void EnqueueWork(WorkerType &&worker)
+    {
+        _workCount++;
         _queue.push(std::move(worker));
 
         PTP_WORK work = CreateThreadpoolWork(_WorkCallback, nullptr, &_environment);
         SubmitThreadpoolWork(work);
     }
 
-    bool IsWorking() {
-        return !_queue.empty() || _workCount > 0;
+    bool IsWorking()
+    {
+        return _workCount > 0;
     }
 
-    void Destroy() {
+    void Destroy()
+    {
         CloseThreadpoolCleanupGroupMembers(_cleanupGroup, true, NULL);
         CloseThreadpoolCleanupGroup(_cleanupGroup);
         CloseThreadpool(_pool);
