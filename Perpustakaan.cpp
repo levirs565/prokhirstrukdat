@@ -59,7 +59,8 @@ RBTree<Book, BookTitleComparer> tree;
 RobinHoodHashMap<std::wstring, Book, BookTitleHasher> hashTable;
 RBTree<Book, BookTitleComparer> removeHistoryTree;
 
-void EnqueueRefreshAllList();
+void ClearAllList();
+void EnqueueRefreshAll();
 const std::wstring waitQueueMessage = L"Menunggu antrian tugas";
 const std::wstring loadDataMessage = L"Memuat data";
 
@@ -190,7 +191,7 @@ namespace AddWindow
 
         btnAdd.SetEnable(false);
         WorkerThread::EnqueueWork(DoAdd);
-        EnqueueRefreshAllList();
+        EnqueueRefreshAll();
 
         return 0;
     }
@@ -256,19 +257,19 @@ struct BookListView : UI::VListView
         InsertColumn(L"Tahun", 100);
     }
 
-    wchar_t *OnGetItem(int row, int column) override
+    const std::wstring *OnGetItem(int row, int column) override
     {
         Book *book = items[row];
         if (column == 0)
-            return const_cast<wchar_t *>(book->isbn.c_str());
+            return &book->isbn;
         else if (column == 1)
-            return const_cast<wchar_t *>(book->title.c_str());
+            return &book->title;
         else if (column == 2)
-            return const_cast<wchar_t *>(book->author.c_str());
+            return &book->author;
         else if (column == 3)
-            return const_cast<wchar_t *>(book->publisher.c_str());
+            return &book->publisher;
         else if (column == 4)
-            return const_cast<wchar_t *>(book->year.c_str());
+            return &book->year;
         return nullptr;
     }
 };
@@ -367,7 +368,7 @@ namespace TabHistoryDelete
         btnTampil.SetEnable(false);
 
         WorkerThread::EnqueueWork(DoRestore);
-        EnqueueRefreshAllList();
+        EnqueueRefreshAll();
 
         return 0;
     }
@@ -435,6 +436,8 @@ void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progre
     {
         selectedBook.push_back(*listView->items[v]);
     }
+
+    ClearAllList();
 
     Timer t;
 
@@ -547,7 +550,7 @@ namespace TabOldBooks
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
         WorkerThread::EnqueueWork(DoDelete);
-        EnqueueRefreshAllList();
+        EnqueueRefreshAll();
         TabHistoryDelete::EnqueueRefreshList();
         return 0;
     }
@@ -675,7 +678,7 @@ namespace TabFindBooksRange
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
         WorkerThread::EnqueueWork(DoDelete);
-        EnqueueRefreshAllList();
+        EnqueueRefreshAll();
         TabHistoryDelete::EnqueueRefreshList();
         return 0;
     }
@@ -810,7 +813,7 @@ namespace TabAllBooks
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
         WorkerThread::EnqueueWork(DoDelete);
-        EnqueueRefreshAllList();
+        EnqueueRefreshAll();
         TabHistoryDelete::EnqueueRefreshList();
         return 0;
     }
@@ -929,6 +932,7 @@ namespace TabDetailsBooks
 
     void DoDelete()
     {
+        ClearAllList();
         label.ReplaceLastMessage(L"Menghapus data");
         Timer t;
 
@@ -946,7 +950,7 @@ namespace TabDetailsBooks
             return 0;
 
         WorkerThread::EnqueueWork(DoDelete);
-        EnqueueRefreshAllList();
+        EnqueueRefreshAll();
         TabHistoryDelete::EnqueueRefreshList();
 
         return 0;
@@ -1078,7 +1082,7 @@ namespace MainWindow
         tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
         WorkerThread::EnqueueWork(DoLoad);
-        EnqueueRefreshAllList();
+        EnqueueRefreshAll();
         TabHistoryDelete::EnqueueRefreshList();
 
         return 0;
@@ -1094,7 +1098,14 @@ namespace MainWindow
     }
 }
 
-void EnqueueRefreshAllList()
+void ClearAllList()
+{
+    TabAllBooks::listView.SetRowCount(0);
+    TabFindBooksRange::listView.SetRowCount(0);
+    TabOldBooks::listView.SetRowCount(0);
+}
+
+void EnqueueRefreshAll()
 {
     TabAllBooks::EnqueueRefreshList();
     TabFindBooksRange::EnqueueRefreshList();

@@ -722,12 +722,6 @@ namespace UI
         TextBox _textBox;
         UpDown _upDown;
 
-        LRESULT _OnTextBoxKillFocus(UI::CallbackParam param)
-        {
-            std::wcout << _textBox.getText() << std::endl;
-            return 0;
-        }
-
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
             _className = WC_STATICW;
@@ -986,7 +980,7 @@ namespace UI
     struct VListView : ListView
     {
         size_t _columnCount = 0;
-        std::function<wchar_t *(int, int)> itemGetter;
+
 
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
@@ -1003,24 +997,21 @@ namespace UI
         LRESULT _OnLVNGetDispInfo(UI::CallbackParam param)
         {
             NMLVDISPINFOW *info = reinterpret_cast<NMLVDISPINFOW *>(param.lParam);
-
-            // if (info->item.mask & LVIF_STATE) {
-            // info->item.state |= LVIS_
-            // }
-            if (info->item.mask & LVIF_TEXT)
+            if ((info->item.mask & LVIF_TEXT) && info->item.iSubItem < _columnCount)
             {
-                if (info->item.iSubItem < _columnCount)
-                {
-                    info->item.pszText = OnGetItem(info->item.iItem, info->item.iSubItem);
+                const std::wstring *text = OnGetItem(info->item.iItem, info->item.iSubItem);
+
+                if (text != nullptr) {
+                    info->item.pszText = const_cast<wchar_t*>(text->c_str());
                 }
             }
 
             return 0;
         }
 
-        virtual wchar_t *OnGetItem(int row, int column)
+        virtual const std::wstring *OnGetItem(int row, int column)
         {
-            return itemGetter(row, column);
+            return nullptr;
         }
 
         void InsertColumn(const std::wstring &title, int width)
