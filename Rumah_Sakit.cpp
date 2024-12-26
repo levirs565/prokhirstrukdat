@@ -91,6 +91,7 @@ namespace AddWindow
         // window.CloseModal();
 
         std::wcout << Utils::SystemTimeToDateStr(dtpStart.GetValue()) << L"  " << Utils::SystemTimeToDateStr(dtpEnd.GetValue()) << std::endl;
+        std::wcout << Utils::GetSystemDateDifferenceDays(dtpStart.GetValue(), dtpEnd.GetValue()) << std::endl;
 
         return 0;
     }
