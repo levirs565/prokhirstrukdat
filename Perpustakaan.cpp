@@ -60,9 +60,8 @@ RobinHoodHashMap<std::wstring, Book, BookTitleHasher> hashTable;
 RBTree<Book, BookTitleComparer> removeHistoryTree;
 
 void ClearAllList();
-void EnqueueRefreshAll();
-const std::wstring waitQueueMessage = L"Menunggu antrian tugas";
-const std::wstring loadDataMessage = L"Memuat data";
+// Jangan merefresh caller window
+void EnqueueRefreshAll(UI::Window *callerWindow);
 
 namespace AddWindow
 {
@@ -191,7 +190,7 @@ namespace AddWindow
 
         btnAdd.SetEnable(false);
         WorkerThread::EnqueueWork(DoAdd);
-        EnqueueRefreshAll();
+        EnqueueRefreshAll(&window);
 
         return 0;
     }
@@ -274,6 +273,12 @@ struct BookListView : UI::VListView
     }
 };
 
+void MessageSetWait(UI::LabelWorkMessage *message)
+{
+    message->Clear();
+    message->AddMessage(L"Menunggu antrian tugas");
+}
+
 namespace TabHistoryDelete
 {
     UI::Window window;
@@ -284,7 +289,8 @@ namespace TabHistoryDelete
     UI::ProgressBar progress;
     BookListView listView;
 
-    void SetEnable(bool enable) {
+    void SetEnable(bool enable)
+    {
         combobox.SetEnable(enable);
         btnRestore.SetEnable(enable);
         btnTampil.SetEnable(enable);
@@ -331,8 +337,7 @@ namespace TabHistoryDelete
 
     void EnqueueRefreshList()
     {
-        message.Clear();
-        message.AddMessage(L"Menunggu antrian tugas");
+        MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -349,19 +354,20 @@ namespace TabHistoryDelete
         progress.SetWaiting(true);
 
         std::vector<Book> books;
-        for (int v : listView.GetSelectedIndex()) {
+        for (int v : listView.GetSelectedIndex())
+        {
             books.push_back(*listView.items[v]);
         }
 
         listView.SetRowCount(0);
 
         Timer t;
-     
+
         t.start();
-        for (Book& book : books)
+        for (Book &book : books)
         {
             removeHistoryTree.remove(book);
-        
+
             hashTable.put(book.isbn, book);
             tree.insert(std::move(book));
         }
@@ -374,9 +380,11 @@ namespace TabHistoryDelete
 
     LRESULT OnRestoreClick(UI::CallbackParam param)
     {
+        MessageSetWait(&message);
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoRestore);
-        EnqueueRefreshList();
-        EnqueueRefreshAll();
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
         return 0;
     }
 
@@ -535,8 +543,7 @@ namespace TabOldBooks
 
     void EnqueueRefreshList()
     {
-        message.Clear();
-        message.AddMessage(L"Menungu antrian tugas");
+        MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -554,9 +561,11 @@ namespace TabOldBooks
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
+        MessageSetWait(&message);
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
-        EnqueueRefreshAll();
-        TabHistoryDelete::EnqueueRefreshList();
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
         return 0;
     }
 
@@ -663,8 +672,7 @@ namespace TabFindBooksRange
 
     void EnqueueRefreshList()
     {
-        label.Clear();
-        label.AddMessage(L"Menunggu antrian tugas");
+        MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -682,9 +690,11 @@ namespace TabFindBooksRange
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
+        MessageSetWait(&label);
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
-        EnqueueRefreshAll();
-        TabHistoryDelete::EnqueueRefreshList();
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
         return 0;
     }
 
@@ -798,8 +808,7 @@ namespace TabAllBooks
 
     void EnqueueRefreshList()
     {
-        label.Clear();
-        label.AddMessage(L"Menunggu antrian tugas");
+        MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -817,9 +826,11 @@ namespace TabAllBooks
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
+        MessageSetWait(&label);
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
-        EnqueueRefreshAll();
-        TabHistoryDelete::EnqueueRefreshList();
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
         return 0;
     }
 
@@ -923,8 +934,7 @@ namespace TabDetailsBooks
 
     void EnqueueRefresh()
     {
-        label.Clear();
-        label.AddMessage(L"Menunggu antrian tugas");
+        MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -954,9 +964,12 @@ namespace TabDetailsBooks
         if (currentBook.isbn.empty())
             return 0;
 
+
+        MessageSetWait(&label);
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
-        EnqueueRefreshAll();
-        TabHistoryDelete::EnqueueRefreshList();
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
 
         return 0;
     }
@@ -1087,8 +1100,7 @@ namespace MainWindow
         tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
         WorkerThread::EnqueueWork(DoLoad);
-        EnqueueRefreshAll();
-        TabHistoryDelete::EnqueueRefreshList();
+        EnqueueRefreshAll(&window);
 
         return 0;
     }
@@ -1110,12 +1122,18 @@ void ClearAllList()
     TabOldBooks::listView.SetRowCount(0);
 }
 
-void EnqueueRefreshAll()
+void EnqueueRefreshAll(UI::Window *callerWindow)
 {
-    TabAllBooks::EnqueueRefreshList();
-    TabFindBooksRange::EnqueueRefreshList();
-    TabOldBooks::EnqueueRefreshList();
-    TabDetailsBooks::EnqueueRefresh();
+    if (callerWindow != &TabAllBooks::window)
+        TabAllBooks::EnqueueRefreshList();
+    if (callerWindow != &TabFindBooksRange::window)
+        TabFindBooksRange::EnqueueRefreshList();
+    if (callerWindow != &TabOldBooks::window)
+        TabOldBooks::EnqueueRefreshList();
+    if (callerWindow != &TabDetailsBooks::window)
+        TabDetailsBooks::EnqueueRefresh();
+    if (callerWindow != &TabHistoryDelete::window)
+        TabHistoryDelete::EnqueueRefreshList();
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)
