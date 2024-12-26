@@ -704,6 +704,37 @@ namespace UI
         }
     };
 
+    struct DateTimePicker : Control
+    {
+        void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
+        {
+            _className = DATETIMEPICK_CLASSW;
+            Control::Create(window, hParent, pos, size);
+
+            ApplyDefaultFont();
+        }
+
+        SIZE GetDefaultSize() override
+        {
+            return {220, 23};
+        }
+
+        void SetValue(SYSTEMTIME value) {
+            DateTime_SetSystemtime(hwnd, GDT_VALID, &value);
+        }
+
+        void SetRange(SYSTEMTIME from, SYSTEMTIME to) {
+            SYSTEMTIME array[2] = {from, to};
+            DateTime_SetRange(hwnd, GDTR_MIN | GDTR_MAX, array);
+        }
+
+        SYSTEMTIME GetValue() {
+            SYSTEMTIME res;
+            DateTime_GetSystemtime(hwnd, &res);
+            return res;
+        }
+    };
+
     struct UpDown : Control
     {
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
@@ -981,7 +1012,6 @@ namespace UI
     struct VListView : ListView
     {
         size_t _columnCount = 0;
-
 
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {

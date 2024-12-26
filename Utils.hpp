@@ -94,4 +94,23 @@ namespace Utils
         buffer.resize(lastIndex + 1);
         return buffer;
     }
+
+    std::wstring SystemTimeToDateStr(const SYSTEMTIME& in) {
+        return std::to_wstring(in.wDay) + L"/" + std::to_wstring(in.wMonth) + L"/" + std::to_wstring(in.wYear);
+    }
+
+    SYSTEMTIME DateStrToSystemTime(const std::wstring& in) {
+        size_t firstSlash = in.find_first_of(L'/');
+        if (firstSlash == std::wstring::npos) throw std::domain_error("first slash not found");
+        if (firstSlash + 1 == in.size()) throw std::domain_error("first slash in end");
+        size_t secondSlash = in.find_first_of(L'/', firstSlash + 1);
+        if (secondSlash == std::wstring::npos) throw std::domain_error("second slash not found");
+        if (secondSlash + 1 == in.size()) throw std::domain_error("second slash in end");
+
+        SYSTEMTIME res{0};
+        res.wDay = std::stoi(in.substr(0, firstSlash));
+        res.wMonth = std::stoi(in.substr(firstSlash + 1, secondSlash - firstSlash - 1));
+        res.wYear = std::stoi(in.substr(secondSlash + 1));
+        return res;
+    }
 }
