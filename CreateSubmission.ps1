@@ -1,19 +1,10 @@
-$Title = "Do you want to clean this repo?"
-$Prompt = "Enter your choice"
-$Choices = [System.Management.Automation.Host.ChoiceDescription[]] @("&Yes", "&No", "&Cancel")
-$Default = 1
-
-$Choice = $host.UI.PromptForChoice($Title, $Prompt, $Choices, $Default)
-
-if ($Choice -eq 2) {
-    exit 0;
-}
-
-if ($Choice -eq 0) {
-    git clean
-}
+Write-Output "Removing unused filed"
+Remove-Item output -Recurse -Force -Confirm:$false
+Remove-Item *.exe -Force
+Remove-Item *.dll
 
 .\Deploy.ps1
 
 Write-Output "Archiving"
-git archive -o ../Proyek-Akhir-Strukdat.zip HEAD
+$files = Get-ChildItem -Path .\ -Exclude @(".git")
+Compress-Archive -Path $files -DestinationPath ..\Proyek-Akhir-Strukdat.zip -CompressionLevel Optimal
