@@ -17,6 +17,7 @@
 #include <limits>
 #include <stdexcept>
 #include <iostream>
+#include <strsafe.h>
 
 namespace UI
 {
@@ -999,19 +1000,16 @@ namespace UI
             NMLVDISPINFOW *info = reinterpret_cast<NMLVDISPINFOW *>(param.lParam);
             if ((info->item.mask & LVIF_TEXT) && info->item.iSubItem < (int)_columnCount)
             {
-                const std::wstring *text = OnGetItem(info->item.iItem, info->item.iSubItem);
-
-                if (text != nullptr) {
-                    info->item.pszText = const_cast<wchar_t*>(text->c_str());
-                }
+                const std::wstring text = OnGetItem(info->item.iItem, info->item.iSubItem);
+                StringCchCopyW(info->item.pszText, info->item.cchTextMax, text.c_str());
             }
 
             return 0;
         }
 
-        virtual const std::wstring *OnGetItem(int row, int column)
+        virtual const std::wstring OnGetItem(int row, int column)
         {
-            return nullptr;
+            return L"";
         }
 
         void InsertColumn(const std::wstring &title, int width)

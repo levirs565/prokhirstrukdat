@@ -256,20 +256,20 @@ struct BookListView : UI::VListView
         InsertColumn(L"Tahun", 100);
     }
 
-    const std::wstring *OnGetItem(int row, int column) override
+    const std::wstring OnGetItem(int row, int column) override
     {
         Book *book = items[row];
         if (column == 0)
-            return &book->isbn;
+            return book->isbn;
         else if (column == 1)
-            return &book->title;
+            return book->title;
         else if (column == 2)
-            return &book->author;
+            return book->author;
         else if (column == 3)
-            return &book->publisher;
+            return book->publisher;
         else if (column == 4)
-            return &book->year;
-        return nullptr;
+            return book->year;
+        return L"";
     }
 };
 
