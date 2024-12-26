@@ -273,9 +273,10 @@ struct BookListView : UI::VListView
     }
 };
 
-void MessageSetWait(UI::LabelWorkMessage *message)
+void MessageSetWait(UI::LabelWorkMessage *message, bool clear = true)
 {
-    message->Clear();
+    if (clear)
+        message->Clear();
     message->AddMessage(L"Menunggu antrian tugas");
 }
 
@@ -375,7 +376,7 @@ namespace TabHistoryDelete
 
         progress.SetWaiting(false);
         message.ReplaceLastMessage(L"Buku telah direstore dalam waktu " + t.durationStr());
-        message.AddMessage(L"Menunggu antrian tugas");
+        MessageSetWait(&message, false);
     }
 
     LRESULT OnRestoreClick(UI::CallbackParam param)
@@ -462,7 +463,7 @@ void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progre
     t.end();
 
     message->ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr() + L". Penghapusan mungkin terlihat lama karena proses mendapatkan pilihan dari UI");
-    message->AddMessage(L"Menunggu antrian tugas");
+    MessageSetWait(message, false);
     progress->SetWaiting(false);
 }
 
@@ -963,7 +964,6 @@ namespace TabDetailsBooks
     {
         if (currentBook.isbn.empty())
             return 0;
-
 
         MessageSetWait(&label);
         SetEnable(false);
