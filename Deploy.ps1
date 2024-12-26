@@ -1,5 +1,3 @@
-g++ -Wall -o Perpustakaan.exe Perpustakaan.cpp
-
 $dependencies = New-Object System.Collections.ArrayList
 function Search-Dependencies() {
     param (
@@ -25,8 +23,27 @@ function Search-Dependencies() {
     }
 }
 
-Search-Dependencies -Path Perpustakaan.exe
+function Invoke-Build() {
+    param($SourcePath)
 
+    $DestPath = $SourcePath.Replace(".cpp", ".exe")
+
+    Write-Output "Compiling $SourcePath" 
+    g++ -Wall -o $DestPath $SourcePath
+
+    if ($LastExitCode -ne 0) {
+        Write-Output "Compile failed"
+        exit 1;
+    }
+
+    Write-Output "Searching dependecies for $DestPath"
+    Search-Dependencies -Path Perpustakaan.exe
+}
+
+Invoke-Build -SourcePath "Perpustakaan.cpp"
+
+Write-Output "Copying executable dependencies"
 foreach ($dll in $dependencies) {
+    Write-Output "Copying $dll"
     Copy-Item $dll -Destination .\
 }
