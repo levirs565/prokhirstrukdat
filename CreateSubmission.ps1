@@ -9,11 +9,11 @@ if ($Choice -eq 2) {
     exit 0;
 }
 
-if ($Choices -eq 0) {
+if ($Choice -eq 0) {
     git clean
 }
 
 .\Deploy.ps1
 
 Write-Output "Archiving"
-git archive -o ../Proyek-Akhir-Strukdat.zip
+git archive -o ../Proyek-Akhir-Strukdat.zip HEAD
