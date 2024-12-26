@@ -27,7 +27,7 @@ Berikut adalah penjelasan dari file-file pendukung dari proyek kami.
 - Hash
   - Fungsi Hash
     - SipHash (`HalfSipHash.h`)  
-      Fungsi hash yang sudah teruji. Fungsi ini menggunakan operasi add, rotate, dan xor untuk menghasilkan hash. Fungsi SipHash menghasilkan hash berukuran 64 bit. Karena alasan kesederhanaan, file ini hanya mengimplementasikan variasi dari SipHash yang bernama HalfSipHash. HalfSipHash dapat menghasilkan hash dengan ukuran 32 bit dan 64 bit. Untuk mengurangi jumlah collision kita memilih HalfSipHash 64 bit. Kode ini diadaptasi dari [https://github.com/veorq/SipHash/blob/master/halfsiphash.c](https://github.com/veorq/SipHash/blob/master/halfsiphash.c).
+      Fungsi hash yang sudah teruji. Fungsi ini menggunakan operasi add, rotate, dan xor untuk menghasilkan hash. Fungsi SipHash menghasilkan hash berukuran 128 bit. Karena alasan kesederhanaan, file ini hanya mengimplementasikan variasi dari SipHash yang bernama HalfSipHash. HalfSipHash dapat menghasilkan hash dengan ukuran 32 bit dan 64 bit. Untuk mengurangi jumlah collision kita memilih HalfSipHash 64 bit. Kode ini diadaptasi dari [https://github.com/veorq/SipHash/blob/master/halfsiphash.c](https://github.com/veorq/SipHash/blob/master/halfsiphash.c).
   - Hash Table
     - Robin Hood Hash Table (`RobinHoodHashMap.hpp`)  
       Hash table Open Adressing dengan linear probing dan metode Robin Hood. Hash table ini menggunakan array dinamis. Jika jumlah data lebih dari 85% dari kapasitas, maka array diperbesar 2 kali. Jika jumlah data kurang dari 40% dari kapasitas, maka array diperkecil 1/2.
