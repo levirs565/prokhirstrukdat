@@ -3,10 +3,9 @@
 Anggota Kelompok:
 
 - Levi Rizki Saputra (123230127)
--
--
--
--
+- Danang Adiwibowo (123230143)
+- Dida Attallah Elfasdi (123230145)
+- Hafiz Alaudin Rasendriya (123230149)
 
 ## Struktur File
 
