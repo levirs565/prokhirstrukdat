@@ -277,21 +277,30 @@ struct BookListView : UI::VListView
 namespace TabHistoryDelete
 {
     UI::Window window;
-    UI::Label label;
+    UI::LabelWorkMessage message;
     UI::ComboBox combobox;
     UI::Button btnRestore;
     UI::Button btnTampil;
     UI::ProgressBar progress;
     BookListView listView;
-    std::wstring restoreTime;
+
+    void SetEnable(bool enable) {
+        combobox.SetEnable(enable);
+        btnRestore.SetEnable(enable);
+        btnTampil.SetEnable(enable);
+        listView.SetEnable(enable);
+    }
 
     void DoRefresh()
     {
+        progress.SetWaiting(true);
+        message.ReplaceLastMessage(L"Memuat data");
+
         std::wstring type = combobox.GetSelectedText();
         listView.items.resize(removeHistoryTree.count);
         listView.SetRowCount(0);
+
         Timer timer;
-        progress.SetWaiting(true);
 
         {
             timer.start();
@@ -316,20 +325,15 @@ namespace TabHistoryDelete
         progress.SetWaiting(false);
         listView.SetRowCount(removeHistoryTree.count);
 
-        std::wstring message = L"Data dimuat dalam " + timer.durationStr();
-        if (!restoreTime.empty())
-        {
-            message = L"Data di restore dalam " + restoreTime + L". " + message;
-            restoreTime = L"";
-        }
-        label.SetText(message);
-
-        btnTampil.SetEnable(true);
+        message.ReplaceLastMessage(L"Data dimuat dalam " + timer.durationStr());
+        SetEnable(true);
     }
 
     void EnqueueRefreshList()
     {
-        btnTampil.SetEnable(false);
+        message.Clear();
+        message.AddMessage(L"Menunggu antrian tugas");
+        SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
@@ -341,35 +345,38 @@ namespace TabHistoryDelete
 
     void DoRestore()
     {
+        message.ReplaceLastMessage(L"Merestore buku");
+        progress.SetWaiting(true);
+
+        std::vector<Book> books;
+        for (int v : listView.GetSelectedIndex()) {
+            books.push_back(*listView.items[v]);
+        }
+
+        listView.SetRowCount(0);
+
         Timer t;
+     
         t.start();
-        for (int v : listView.GetSelectedIndex())
+        for (Book& book : books)
         {
-            Book book;
-            book.isbn = listView.GetText(v, 0);
-            book.title = listView.GetText(v, 1);
-
-            RBNode<Book> *node = removeHistoryTree.findNode(book);
-            book = node->value;
-
+            removeHistoryTree.remove(book);
+        
             hashTable.put(book.isbn, book);
             tree.insert(std::move(book));
-
-            removeHistoryTree.removeNode(node);
         }
         t.end();
 
-        restoreTime = t.durationStr();
-        DoRefresh();
+        progress.SetWaiting(false);
+        message.ReplaceLastMessage(L"Buku telah direstore dalam waktu " + t.durationStr());
+        message.AddMessage(L"Menunggu antrian tugas");
     }
 
     LRESULT OnRestoreClick(UI::CallbackParam param)
     {
-        btnTampil.SetEnable(false);
-
         WorkerThread::EnqueueWork(DoRestore);
+        EnqueueRefreshList();
         EnqueueRefreshAll();
-
         return 0;
     }
 
@@ -378,8 +385,6 @@ namespace TabHistoryDelete
         btnTampil.SetText(L"Tampilkan");
         btnTampil.commandListener = OnShowClick;
 
-        label.SetText(L"Data Belum Dimuat");
-
         btnRestore.SetText(L"Restore");
         btnRestore.commandListener = OnRestoreClick;
 
@@ -387,7 +392,7 @@ namespace TabHistoryDelete
             {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnTampil)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &message)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnRestore)}};
