@@ -87,7 +87,7 @@ struct Heap
             int j = -1;
             int l = left(i), r = right(i);
 
-            if (r < count && comparer.compare(array[r], array[i]) < 0)
+            if (r < (int)count && comparer.compare(array[r], array[i]) < 0)
             {
                 if (comparer.compare(array[l], array[r]) < 0)
                 {
@@ -98,7 +98,7 @@ struct Heap
                     j = r;
                 }
             }
-            else if (l < count && comparer.compare(array[l], array[i]) < 0)
+            else if (l < (int)count && comparer.compare(array[l], array[i]) < 0)
             {
                 j = l;
             }

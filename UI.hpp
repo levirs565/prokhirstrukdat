@@ -997,7 +997,7 @@ namespace UI
         LRESULT _OnLVNGetDispInfo(UI::CallbackParam param)
         {
             NMLVDISPINFOW *info = reinterpret_cast<NMLVDISPINFOW *>(param.lParam);
-            if ((info->item.mask & LVIF_TEXT) && info->item.iSubItem < _columnCount)
+            if ((info->item.mask & LVIF_TEXT) && info->item.iSubItem < (int)_columnCount)
             {
                 const std::wstring *text = OnGetItem(info->item.iItem, info->item.iSubItem);
 
@@ -1333,7 +1333,7 @@ namespace UI
             int count = 0;
             for (const std::vector<LayoutCellData> &row : window->controlsLayout)
             {
-                count += window->controlsLayout.size();
+                count += row.size();
             }
 
             hDefer = BeginDeferWindowPos(count);
