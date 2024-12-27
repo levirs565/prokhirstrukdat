@@ -1,3 +1,4 @@
+
 #include "UI.hpp"
 #include "CSVReader.hpp"
 #include "RBTree.hpp"
@@ -11,113 +12,107 @@
 #include "UIUtils.hpp"
 #include <stdlib.h>
 
-struct Book
+struct Student
 {
-    std::wstring isbn;
-    std::wstring title;
-    std::wstring author;
-    std::wstring publisher;
-    int year;
+    std::wstring nisn;
+    std::wstring name;
+    std::wstring origin;
+    std::wstring entry;
+    std::wstring password;
 };
 
-struct BookTitleComparer
+struct StudentEntryComparer
 {
-    int compare(const Book &a, const Book &b)
+    int compare(const Student &a, const Student &b)
     {
-        int compare = Utils::CompareWStringHalfInsensitive(a.title, b.title);
+        int compare = Utils::CompareWStringHalfInsensitive(a.entry, b.entry);
 
         if (compare != 0)
             return compare;
 
-        return Utils::CompareWStringHalfInsensitive(a.isbn, b.isbn);
+        return Utils::CompareWStringHalfInsensitive(a.nisn, b.nisn);
     }
 };
 
-struct BookYearCompareReversed
-{
-    int compare(Book *a, Book *b)
-    {
-        int compare = a->year - b->year;
-        if (compare != 0)
-            return -compare;
-
-        return -Utils::CompareWStringHalfInsensitive(a->isbn, b->isbn);
-    }
-};
-
-struct BookTitleHasher
+struct StudentNISNHasher
 {
     uint64_t seed = 0xe17a1465;
-
     uint64_t hash(const std::wstring &wstr)
     {
         return HalfSipHash_64(wstr.data(), sizeof(wchar_t) * wstr.size(), &seed);
     }
 };
 
-RBTree<Book, BookTitleComparer> tree;
-RobinHoodHashMap<std::wstring, Book, BookTitleHasher> hashTable;
-RBTree<Book, BookTitleComparer> removeHistoryTree;
+RBTree<Student, StudentEntryComparer> tree;
+RobinHoodHashMap<std::wstring, Student, StudentNISNHasher> hashTable;
+RBTree<Student, StudentEntryComparer> removeHistoryTree;
 
 void ClearAllList();
 // Jangan merefresh caller window
 void EnqueueRefreshAll(UI::Window *callerWindow);
 
-namespace AddWindow
+namespace AddData
 {
     UI::Window window;
+    UI::ComboBox combobox;
+    UI::Button button;
     UI::Tabs tabs;
     UI::Label label;
-    UI::Label isbn;
-    UI::Label judul;
-    UI::Label penulis;
-    UI::Label tahun;
-    UI::Label penerbit;
-    UI::TextBox isbnTextBox;
-    UI::TextBox judulTextBox;
-    UI::TextBox penulisTextBox;
-    UI::SpinBox tahunSpinBox;
-    UI::TextBox penerbitTextBox;
+    UI::Label NISN;
+    UI::Label name;
+    UI::Label origin;
+    UI::Label entry;
+    UI::Label password;
+    UI::TextBox NISNTextBox;
+    UI::TextBox nameTextBox;
+    UI::TextBox originTextBox;
+    UI::TextBox entryTextBox;
+    UI::TextBox passwordTextBox;
     UI::Button btnAdd;
-    Book book;
+    Student student;
+
+    void SetEnable(boolean enable)
+    {
+        combobox.SetEnable(enable);
+        button.SetEnable(enable);
+    }
 
     void DoAdd()
     {
         Timer t;
 
         t.start();
-        hashTable.put(book.isbn, book);
-        tree.insert(std::move(book));
+        hashTable.put(student.nisn, student);
+        tree.insert(std::move(student));
         t.end();
 
-        std::wstring message = L"Buku Telah berhasil Ditambahkan dalam Waktu " + t.durationStr();
+        std::wstring message = L"Akun PPDB Telah Berhasil Dibuat dalam Waktu " + t.durationStr();
         MessageBoxW(window.hwnd, message.c_str(), L"Success", MB_OK);
         window.CloseModal();
     }
 
     LRESULT OnAddClick(UI::CallbackParam param)
     {
-        std::pair<int, bool> tahun = tahunSpinBox.GetValuePair();
-        book = Book{
-            isbnTextBox.getText(),
-            judulTextBox.getText(),
-            penulisTextBox.getText(),
-            penerbitTextBox.getText(),
-            tahun.first};
+        student = Student{
+            NISNTextBox.getText(),
+            nameTextBox.getText(),
+            originTextBox.getText(),
+            entryTextBox.getText(),
+            passwordTextBox.getText()};
 
         try
         {
-            if (book.isbn.size() == 0)
+            if (student.nisn.size() == 0)
             {
-                throw std::domain_error("ISBN Tidak Boleh Kosong");
+                throw std::domain_error("NISN Tidak Boleh Kosong");
             }
 
-            if (book.isbn.size() != 10)
+            if (student.nisn.size() != 10)
             {
-                throw std::domain_error("ISBN Harus 10 Angka");
+                throw std::domain_error("NISN Harus 10 Angka");
             }
             int Xcount = 0;
-            for (wchar_t ch : book.isbn)
+            for (wchar_t ch : student.nisn)
             {
                 if (ch == L'X')
                 {
@@ -126,35 +121,34 @@ namespace AddWindow
                 }
                 if (!iswdigit(ch))
                 {
-                    throw std::domain_error("ISBN harus berupa angka!");
+                    throw std::domain_error("NISN harus berupa angka!");
                 }
             }
 
-            if ((Xcount == 1 && book.isbn[book.isbn.size() - 1] != L'X') || (Xcount > 1))
+            if ((Xcount == 1 && student.nisn[student.nisn.size() - 1] != L'X') || (Xcount > 1))
             {
-                throw std::domain_error("X hanya Bisa Di akhir ISBN");
+                throw std::domain_error("X hanya Bisa Di akhir NISN");
             }
-            if (hashTable.get(book.isbn) != nullptr)
+            if (hashTable.get(student.nisn) != nullptr)
             {
-                throw std::domain_error("Buku dengan ISBN sama telah ada");
-            }
-
-            if (book.title.size() == 0)
-            {
-                throw std::domain_error("Judul Tidak Boleh Kosong");
-            }
-            if (book.author.size() == 0)
-            {
-                throw std::domain_error("Penulis Tidak Boleh Kosong");
-            }
-            if (tahun.second)
-            {
-                throw std::domain_error("Tahun tidak valid. Tahun harus berupa angka dari 1000 sampai 2500");
+                throw std::domain_error("Siswa dengan NISN sama telah ada");
             }
 
-            if (book.publisher.size() == 0)
+            if (student.name.size() == 0)
             {
-                throw std::domain_error("Penerbit Tidak Boleh Kosong");
+                throw std::domain_error("Nama Siswa Tidak Boleh Kosong");
+            }
+            if (student.origin.size() == 0)
+            {
+                throw std::domain_error("Asal Sekolah Siswa Tidak Boleh Kosong");
+            }
+            if (student.entry.size() == 0)
+            {
+                throw std::domain_error("Jalur Masuk Siswa Tidak Boleh Kosong");
+            }
+            if (student.password.size() == 0)
+            {
+                throw std::domain_error("Password Tidak Boleh Kosong");
             }
         }
 
@@ -175,35 +169,39 @@ namespace AddWindow
     {
         window.InitModal();
 
-        label.SetText(L"Masukkan Data Buku!");
-        isbn.SetText(L"ISBN :");
-        judul.SetText(L"Judul Buku :");
-        penulis.SetText(L"Penulis Buku :");
-        tahun.SetText(L"Tahun Terbit :");
-        penerbit.SetText(L"Penerbit :");
-        tahunSpinBox._upDown._dwStyle |= UDS_NOTHOUSANDS;
-        btnAdd.SetText(L"Tambahkan Buku");
+        label.SetText(L"Masukkan Data Siswa!");
+        NISN.SetText(L"NISN :");
+        name.SetText(L"Nama Siswa :");
+        origin.SetText(L"Asal Sekolah Siswa :");
+        entry.SetText(L"Jalur Masuk Siswa :");
+        password.SetText(L"Password :");
+        btnAdd.SetText(L"Buat Akun");
         btnAdd.commandListener = OnAddClick;
 
         window.controlsLayout = {
+            {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &button)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::EmptyCell(UI::SIZE_FILL, 23)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &isbn)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &isbnTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &judul)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &judulTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penulis)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penulisTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &tahun)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &tahunSpinBox)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbit)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbitTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &NISN)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &NISNTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &name)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &nameTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &origin)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &originTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &entry)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &entryTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &password)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &passwordTextBox)},
             {UI::EmptyCell(UI::SIZE_FILL, 23)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &btnAdd)}};
 
         UI::LayoutControls(&window, true);
 
-        tahunSpinBox.SetRange(1000, 2500);
+        combobox.AddItem(L"Rapot");
+        combobox.AddItem(L"Zonasi");
+        combobox.AddItem(L"Prestasi");
+        combobox.SetSelectedIndex(1);
 
         return 0;
     }
@@ -211,15 +209,15 @@ namespace AddWindow
     void Show()
     {
         window.quitWhenClose = false;
-        window.title = L"Add WIndow";
+        window.title = L"Buat Akun PPDB";
         window.registerMessageListener(WM_CREATE, OnCreate);
         UI::ShowWindowClass(window);
     }
 }
 
-struct BookListView : UI::VListView
+struct StudentListView : UI::VListView
 {
-    std::vector<Book *> items;
+    std::vector<Student *> items;
 
     void Create(UI::Window *window, HWND hParent, POINT pos, SIZE size) override
     {
@@ -227,26 +225,26 @@ struct BookListView : UI::VListView
         UI::VListView::Create(window, hParent, pos, size);
 
         SetExtendedStyle(LVS_EX_FULLROWSELECT);
-        InsertColumn(L"ISBN", 100);
-        InsertColumn(L"Judul", 200);
-        InsertColumn(L"Penulis", 100);
-        InsertColumn(L"Penerbit", 100);
-        InsertColumn(L"Tahun", 100);
+        InsertColumn(L"NISN", 100);
+        InsertColumn(L"Nama", 200);
+        InsertColumn(L"Asal Sekolah", 100);
+        InsertColumn(L"Jalur Masuk", 100);
+        InsertColumn(L"Password", 100);
     }
 
     const std::wstring OnGetItem(int row, int column) override
     {
-        Book *book = items[row];
+        Student *student = items[row];
         if (column == 0)
-            return book->isbn;
+            return student->nisn;
         else if (column == 1)
-            return book->title;
+            return student->name;
         else if (column == 2)
-            return book->author;
+            return student->origin;
         else if (column == 3)
-            return book->publisher;
+            return student->entry;
         else if (column == 4)
-            return std::to_wstring(book->year);
+            return student->password;
         return L"";
     }
 };
@@ -259,7 +257,7 @@ namespace TabHistoryDelete
     UI::Button btnRestore;
     UI::Button btnTampil;
     UI::ProgressBar progress;
-    BookListView listView;
+    StudentListView listView;
 
     void SetEnable(bool enable)
     {
@@ -284,7 +282,7 @@ namespace TabHistoryDelete
             timer.start();
 
             size_t current = 0;
-            std::function<void(RBNode<Book> *)> visitor = [&](RBNode<Book> *node)
+            std::function<void(RBNode<Student> *)> visitor = [&](RBNode<Student> *node)
             {
                 listView.items[current] = &node->value;
                 current++;
@@ -322,13 +320,13 @@ namespace TabHistoryDelete
 
     void DoRestore()
     {
-        message.ReplaceLastMessage(L"Merestore buku");
+        message.ReplaceLastMessage(L"Merestore Data Siswa");
         progress.SetWaiting(true);
 
-        std::vector<Book> books;
+        std::vector<Student> students;
         for (int v : listView.GetSelectedIndex())
         {
-            books.push_back(*listView.items[v]);
+            students.push_back(*listView.items[v]);
         }
 
         listView.SetRowCount(0);
@@ -336,17 +334,17 @@ namespace TabHistoryDelete
         Timer t;
 
         t.start();
-        for (Book &book : books)
+        for (Student &student : students)
         {
-            removeHistoryTree.remove(book);
+            removeHistoryTree.remove(student);
 
-            hashTable.put(book.isbn, book);
-            tree.insert(std::move(book));
+            hashTable.put(student.nisn, student);
+            tree.insert(std::move(student));
         }
         t.end();
 
         progress.SetWaiting(false);
-        message.ReplaceLastMessage(L"Buku telah direstore dalam waktu " + t.durationStr());
+        message.ReplaceLastMessage(L"Data Siswa telah direstore dalam waktu " + t.durationStr());
         UIUtils::MessageSetWait(&message, false);
     }
 
@@ -396,30 +394,30 @@ namespace TabHistoryDelete
 
 LRESULT OnAddClick(UI::CallbackParam param)
 {
-    AddWindow::Show();
+    AddData::Show();
     return 0;
 }
 
-void DoRemove(Book &&book, HWND window)
+void DoRemove(Student &&Student, HWND window)
 {
-    if (!tree.remove(book))
+    if (!tree.remove(Student))
         MessageBoxA(window, "Penghapusan di RBTree gagal", "Gagal", MB_OK);
 
-    if (!hashTable.remove(book.isbn))
+    if (!hashTable.remove(Student.nisn))
         MessageBoxA(window, "Penghapusan di RobinHoodHashTable gagal", "Gagal", MB_OK);
 
-    removeHistoryTree.insert(std::move(book));
+    removeHistoryTree.insert(std::move(Student));
 }
 
-void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progress, UI::LabelWorkMessage *message)
+void DoRemoveByListViewSelection(StudentListView *listView, UI::ProgressBar *progress, UI::LabelWorkMessage *message)
 {
     progress->SetWaiting(true);
     message->ReplaceLastMessage(L"Menghapus data");
 
-    std::vector<Book> selectedBook;
+    std::vector<Student> selectedStudent;
     for (int v : listView->GetSelectedIndex())
     {
-        selectedBook.push_back(*listView->items[v]);
+        selectedStudent.push_back(*listView->items[v]);
     }
 
     ClearAllList();
@@ -427,9 +425,9 @@ void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progre
     Timer t;
 
     t.start();
-    for (Book &buku : selectedBook)
+    for (Student &student : selectedStudent)
     {
-        DoRemove(std::move(buku), listView->_window->hwnd);
+        DoRemove(std::move(student), listView->_window->hwnd);
     }
     t.end();
 
@@ -438,7 +436,7 @@ void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progre
     progress->SetWaiting(false);
 }
 
-void CopyISBNByListViewSelection(UI::ListView *listView)
+void CopynisnByListViewSelection(UI::ListView *listView)
 {
     try
     {
@@ -449,8 +447,8 @@ void CopyISBNByListViewSelection(UI::ListView *listView)
         if (focusedIndexs.size() > 1)
             throw std::domain_error("Item yang dipilih lebih dari 1");
 
-        std::wstring isbn = listView->GetText(focusedIndexs[0], 0);
-        Utils::CopyToClipboard(isbn);
+        std::wstring nisn = listView->GetText(focusedIndexs[0], 0);
+        Utils::CopyToClipboard(nisn);
     }
     catch (std::domain_error const &e)
     {
@@ -458,161 +456,101 @@ void CopyISBNByListViewSelection(UI::ListView *listView)
     }
 }
 
-namespace TabOldBooks
+namespace TabStudentAuth
 {
-    UI::Label label;
     UI::Window window;
-    UI::SpinBox spinBox;
-    UI::Button findButton;
-    UI::ProgressBar progress;
-    UI::LabelWorkMessage message;
-    UI::CheckBox ignoreInvalidYearCheck;
-    UI::Button btnAdd, btnDelete, btnCopyISBN;
-    BookListView listView;
+    UI::Label nisnLabel, passwordLabel;
+    UI::TextBox nisnTextBox, passwordTextBox;
+    UI::LabelWorkMessage label;
+    UI::Button btnAuth;
 
     void SetEnable(boolean enable)
     {
-        spinBox.SetEnable(enable);
-        findButton.SetEnable(enable);
-        ignoreInvalidYearCheck.SetEnable(enable);
-        btnAdd.SetEnable(enable);
-        btnDelete.SetEnable(enable);
-        btnCopyISBN.SetEnable(enable);
-        listView.SetEnable(enable);
+        nisnTextBox.SetEnable(enable);
+        passwordTextBox.SetEnable(enable);
+        btnAuth.SetEnable(enable);
     }
 
     void DoRefresh()
     {
-        message.ReplaceLastMessage(L"Memproses data");
-        listView.SetRowCount(0);
-        progress.SetWaiting(true);
-
-        int count = spinBox.GetValue();
-        bool ignoreInvalid = ignoreInvalidYearCheck.GetCheck() == BST_CHECKED;
-
+        label.ReplaceLastMessage(L"Menemukan data");
+        std::wstring nisn = nisnTextBox.getText(), password = passwordTextBox.getText();
         Timer timer;
+
         timer.start();
-        TopKLargest<Book *, BookYearCompareReversed> topK(count);
-        tree.preorder(tree.root, [&](RBNode<Book> *node)
-                      {
-            if (node->value.year == 0 && ignoreInvalid) return;
-            topK.add(&node->value); });
-
-        int listSize = topK.getCount();
-        listView.items.resize(listSize);
-
-        for (int i = listSize - 1; i >= 0; i--)
-        {
-            listView.items[i] = topK.removeTop();
-        }
+        Student *res = hashTable.get(nisn);
         timer.end();
 
-        listView.SetRowCount(listSize);
-        progress.SetWaiting(false);
-        message.ReplaceLastMessage(L"Data ditemukan dalam " + timer.durationStr());
+        if (res == nullptr)
+            label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr() + L". Data tidak ada");
+        else if (res->password != password)
+            label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr() + L". Password salah");
+        else
+            label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr() + L". Password benar");
+
         SetEnable(true);
     }
 
     void EnqueueRefreshList()
     {
-        UIUtils::MessageSetWait(&message);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
-    LRESULT OnFindClick(UI::CallbackParam param)
+    LRESULT OnAuthClick(UI::CallbackParam param)
     {
         EnqueueRefreshList();
         return 0;
     }
 
-    void DoDelete()
-    {
-        DoRemoveByListViewSelection(&listView, &progress, &message);
-    }
-
-    LRESULT OnDeleteClick(UI::CallbackParam param)
-    {
-        UIUtils::MessageSetWait(&message);
-        SetEnable(false);
-        WorkerThread::EnqueueWork(DoDelete);
-        WorkerThread::EnqueueWork(DoRefresh);
-        EnqueueRefreshAll(&window);
-        return 0;
-    }
-
-    LRESULT OnCopyISBNClick(UI::CallbackParam param)
-    {
-        CopyISBNByListViewSelection(&listView);
-        return 0;
-    }
-
     LRESULT OnCreate(UI::CallbackParam param)
     {
-        label.SetText(L"Jumlah: ");
+        nisnLabel.SetText(L"NISN");
+        passwordLabel.SetText(L"Password");
 
-        findButton.SetText(L"Temukan");
-        findButton.commandListener = OnFindClick;
-
-        ignoreInvalidYearCheck.SetText(L"Abaikan Buku dengan Tahun Tidak Valid");
-
-        btnCopyISBN.SetText(L"Salin ISBN");
-        btnCopyISBN.commandListener = OnCopyISBNClick;
-
-        btnAdd.SetText(L"Tambahkan Buku");
-        btnAdd.commandListener = OnAddClick;
-
-        btnDelete.SetText(L"Hapus Buku");
-        btnDelete.commandListener = OnDeleteClick;
+        btnAuth.SetText(L"Cari");
+        btnAuth.commandListener = OnAuthClick;
 
         window.controlsLayout = {
-            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &label),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &spinBox),
-             UI::ControlCell(250, UI::SIZE_DEFAULT, &ignoreInvalidYearCheck),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &findButton)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &message)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
-             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
-             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
-             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &nisnLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &nisnTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &passwordLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &passwordTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnAuth)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)}};
 
         UI::LayoutControls(&window, true);
 
-        ignoreInvalidYearCheck.SetCheck(BST_CHECKED);
-        spinBox.SetRange(0, 1000);
-        spinBox.SetValue(100);
-
         return 0;
-    };
+    }
 
     void Init()
     {
-        window.title = L"TabOldBooks";
+        window.title = L"TabStudentAuth";
         window.registerMessageListener(WM_CREATE, OnCreate);
     }
-};
+}
 
-namespace TabFindBooksRange
+namespace TabFindStudentsRange
 {
     UI::Window window;
-    UI::Label fromLabel, toLabel;
-    UI::TextBox fromTextBox, toTextBox;
+    UI::Label entryLabel, nisnLabel;
+    UI::TextBox entryTextBox, nisnTextBox;
     UI::Button btnFind;
-    UI::Button btnAdd, btnDelete, btnCopyISBN;
+    UI::Button btnAdd, btnDelete, btnCopynisn;
     UI::ProgressBar progress;
     UI::LabelWorkMessage label;
-    BookListView listView;
+    StudentListView listView;
 
     void SetEnable(boolean enable)
     {
-        fromTextBox.SetEnable(enable);
-        toTextBox.SetEnable(enable);
+        entryTextBox.SetEnable(enable);
+        nisnTextBox.SetEnable(enable);
         btnFind.SetEnable(enable);
         btnAdd.SetEnable(enable);
         btnDelete.SetEnable(enable);
-        btnCopyISBN.SetEnable(enable);
+        btnCopynisn.SetEnable(enable);
         listView.SetEnable(enable);
     }
 
@@ -622,14 +560,18 @@ namespace TabFindBooksRange
         listView.SetRowCount(0);
 
         label.ReplaceLastMessage(L"Menemukan data");
-        std::wstring from = fromTextBox.getText(), to = toTextBox.getText();
+        std::wstring entry = entryTextBox.getText(), nisn = nisnTextBox.getText();
         Timer timer;
+
+        std::wstring nisnEnd = nisn;
+        while (nisnEnd.size() <= 10)
+            nisnEnd.push_back('9');
 
         progress.SetWaiting(true);
 
         {
             timer.start();
-            tree.findBetween(Book{L".", from}, {L":", to}, [&](RBNode<Book> *node)
+            tree.findBetween(Student{nisn, L"", L"", entry}, {nisnEnd, L"", L"", entry}, [&](RBNode<Student> *node)
                              { listView.items.push_back(&node->value); });
             timer.end();
         }
@@ -671,40 +613,40 @@ namespace TabFindBooksRange
         return 0;
     }
 
-    LRESULT OnCopyISBNClick(UI::CallbackParam param)
+    LRESULT OnCopynisnClick(UI::CallbackParam param)
     {
-        CopyISBNByListViewSelection(&listView);
+        CopynisnByListViewSelection(&listView);
         return 0;
     }
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
-        fromLabel.SetText(L"Dari");
-        toLabel.SetText(L"Ke");
+        entryLabel.SetText(L"Jalur Masuk");
+        nisnLabel.SetText(L"NISN Awal");
 
         btnFind.SetText(L"Cari");
         btnFind.commandListener = OnFindClick;
 
-        btnCopyISBN.SetText(L"Salin ISBN");
-        btnCopyISBN.commandListener = OnCopyISBNClick;
+        btnCopynisn.SetText(L"Salin nisn");
+        btnCopynisn.commandListener = OnCopynisnClick;
 
-        btnAdd.SetText(L"Tambahkan Buku");
+        btnAdd.SetText(L"Tambahkan Siswa");
         btnAdd.commandListener = OnAddClick;
 
-        btnDelete.SetText(L"Hapus Buku");
+        btnDelete.SetText(L"Hapus Siswa");
         btnDelete.commandListener = OnDeleteClick;
 
         window.controlsLayout = {
-            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &fromLabel),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &fromTextBox),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &toLabel),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &toTextBox),
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &entryLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &entryTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &nisnLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &nisnTextBox),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnFind)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
-             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopynisn),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
 
@@ -715,22 +657,22 @@ namespace TabFindBooksRange
 
     void Init()
     {
-        window.title = L"TabFindBooksRange";
+        window.title = L"TabFindStudentsRange";
         window.registerMessageListener(WM_CREATE, OnCreate);
     }
 }
 
-namespace TabAllBooks
+namespace TabAllStudents
 {
     UI::Window window;
     UI::ComboBox combobox;
     UI::Button button;
     UI::Button btnAdd;
     UI::Button btnDelete;
-    UI::Button btnCopyISBN;
+    UI::Button btnCopyNISN;
     UI::ProgressBar progress;
     UI::LabelWorkMessage label;
-    BookListView listView;
+    StudentListView listView;
 
     void SetEnable(boolean enable)
     {
@@ -738,7 +680,7 @@ namespace TabAllBooks
         button.SetEnable(enable);
         btnAdd.SetEnable(enable);
         btnDelete.SetEnable(enable);
-        btnCopyISBN.SetEnable(enable);
+        btnCopyNISN.SetEnable(enable);
         listView.SetEnable(enable);
     }
 
@@ -757,7 +699,7 @@ namespace TabAllBooks
         {
             timer.start();
             size_t current = 0;
-            std::function<void(RBNode<Book> *)> visitor = [&](RBNode<Book> *node)
+            std::function<void(RBNode<Student> *)> visitor = [&](RBNode<Student> *node)
             {
                 listView.items[current] = &node->value;
                 current++;
@@ -807,9 +749,9 @@ namespace TabAllBooks
         return 0;
     }
 
-    LRESULT OnCopyISBNClick(UI::CallbackParam param)
+    LRESULT OnCopynisnClick(UI::CallbackParam param)
     {
-        CopyISBNByListViewSelection(&listView);
+        CopynisnByListViewSelection(&listView);
         return 0;
     }
 
@@ -818,14 +760,14 @@ namespace TabAllBooks
         button.SetText(L"Tampilkan");
         button.commandListener = OnShowClick;
 
-        btnAdd.SetText(L"Tambahkan Buku");
+        btnAdd.SetText(L"Tambahkan Data");
         btnAdd.commandListener = OnAddClick;
 
-        btnDelete.SetText(L"Hapus Buku");
+        btnDelete.SetText(L"Hapus Data");
         btnDelete.commandListener = OnDeleteClick;
 
-        btnCopyISBN.SetText(L"Salin ISBN");
-        btnCopyISBN.commandListener = OnCopyISBNClick;
+        btnCopyNISN.SetText(L"Salin NISN");
+        btnCopyNISN.commandListener = OnCopynisnClick;
 
         window.controlsLayout = {
             {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
@@ -834,7 +776,7 @@ namespace TabAllBooks
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
-             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyNISN),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
@@ -849,23 +791,23 @@ namespace TabAllBooks
 
     void Init()
     {
-        window.title = L"TabAllBooks";
+        window.title = L"TabAllStudents";
         window.registerMessageListener(WM_CREATE, OnCreate);
     }
 }
 
-namespace TabDetailsBooks
+namespace TabFindNISN
 {
     UI::Window window;
     UI::LabelWorkMessage label;
-    UI::Label ISBNlabel;
+    UI::Label NISNlabel;
     UI::Button btnSearch;
-    UI::TextBox ISBNTextBox;
+    UI::TextBox NISNTextBox;
     UI::StatusBar statusBar;
     UI::ListView listView;
     UI::Button btnAdd;
     UI::Button btnDelete;
-    Book currentBook;
+    Student currentStudent;
 
     void SetEnable(boolean enable)
     {
@@ -877,30 +819,30 @@ namespace TabDetailsBooks
 
     void DoRefresh()
     {
-        label.ReplaceLastMessage(L"Mencari buku sesuai dengan ISBN");
+        label.ReplaceLastMessage(L"Mencari Siswa Berdasarkan NISN");
         Timer timer;
 
         {
-            std::wstring isbn = ISBNTextBox.getText();
+            std::wstring nisn = NISNTextBox.getText();
             timer.start();
-            Book *buku = hashTable.get(isbn);
+            Student *student = hashTable.get(nisn);
             timer.end();
-            if (buku == nullptr)
+            if (student == nullptr)
             {
                 label.ReplaceLastMessage(L"Tidak ditemukan. Membutuhkan waktu " + timer.durationStr());
-                currentBook = {};
+                currentStudent = {};
             }
             else
             {
                 label.ReplaceLastMessage(L"Ditemukan dalam waktu " + timer.durationStr());
-                currentBook = *buku;
+                currentStudent = *student;
             }
 
-            listView.SetText(0, 1, currentBook.isbn);
-            listView.SetText(1, 1, currentBook.title);
-            listView.SetText(2, 1, currentBook.author);
-            listView.SetText(3, 1, currentBook.publisher);
-            listView.SetText(4, 1, std::to_wstring(currentBook.year));
+            listView.SetText(0, 1, currentStudent.nisn);
+            listView.SetText(1, 1, currentStudent.name);
+            listView.SetText(2, 1, currentStudent.origin);
+            listView.SetText(3, 1, currentStudent.entry);
+            listView.SetText(4, 1, currentStudent.password);
         }
         SetEnable(true);
     }
@@ -925,7 +867,7 @@ namespace TabDetailsBooks
         Timer t;
 
         t.start();
-        DoRemove(std::move(currentBook), window.hwnd);
+        DoRemove(std::move(currentStudent), window.hwnd);
         t.end();
 
         label.ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr());
@@ -934,7 +876,7 @@ namespace TabDetailsBooks
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        if (currentBook.isbn.empty())
+        if (currentStudent.nisn.empty())
             return 0;
 
         UIUtils::MessageSetWait(&label);
@@ -948,22 +890,22 @@ namespace TabDetailsBooks
 
     LRESULT onCreate(UI::CallbackParam param)
     {
-        ISBNlabel.SetText(L"Cari Berdasarkan ISBN :");
+        NISNlabel.SetText(L"Cari Berdasarkan NISN :");
 
         btnSearch.SetText(L"Cari");
         btnSearch.commandListener = OnFindClick;
 
-        btnAdd.SetText(L"Tambahkan Buku");
+        btnAdd.SetText(L"Tambahkan Data");
         btnAdd.commandListener = OnAddClick;
 
-        btnDelete.SetText(L"Hapus Buku");
+        btnDelete.SetText(L"Hapus Data");
         btnDelete.commandListener = OnDeleteClick;
 
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
         window.controlsLayout = {
-            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &ISBNlabel),
-             UI::ControlCell(100, UI::SIZE_DEFAULT, &ISBNTextBox),
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &NISNlabel),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &NISNTextBox),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnSearch)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
@@ -973,11 +915,11 @@ namespace TabDetailsBooks
         UI::LayoutControls(&window, true);
 
         listView.InsertColumn(L"Prop", 100);
-        listView.InsertRow(L"ISBN");
-        listView.InsertRow(L"Judul Buku");
-        listView.InsertRow(L"Penulis Buku");
-        listView.InsertRow(L"Penerbit Buku");
-        listView.InsertRow(L"Tahun Terbit");
+        listView.InsertRow(L"NISN");
+        listView.InsertRow(L"Nama Siswa");
+        listView.InsertRow(L"Asal Sekolah Siswa");
+        listView.InsertRow(L"Jalur Masuk Siswa");
+        listView.InsertRow(L"Password");
         listView.InsertColumn(L"Value", 200);
 
         return 0;
@@ -985,7 +927,143 @@ namespace TabDetailsBooks
 
     void Init()
     {
-        window.title = L"DetailsBooks";
+        window.title = L"FindNISN";
+        window.registerMessageListener(WM_CREATE, onCreate);
+    }
+}
+
+namespace TabFindEntry
+{
+    UI::Window window;
+    UI::LabelWorkMessage label;
+    UI::Label entrylabel;
+    UI::Button btnSearch;
+    UI::TextBox entryTextBox;
+    UI::StatusBar statusBar;
+    UI::ListView listView;
+    UI::Button btnAdd;
+    UI::Button btnDelete;
+    Student currentStudent;
+
+    void SetEnable(boolean enable)
+    {
+        btnSearch.SetEnable(enable);
+        listView.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+    }
+
+    void DoRefresh()
+    {
+        label.ReplaceLastMessage(L"Mencari Siswa Berdasarkan NISN");
+        Timer timer;
+
+        {
+            std::wstring entry = entryTextBox.getText();
+            timer.start();
+            Student *student = hashTable.get(entry);
+            timer.end();
+            if (student == nullptr)
+            {
+                label.ReplaceLastMessage(L"Tidak ditemukan. Membutuhkan waktu " + timer.durationStr());
+                currentStudent = {};
+            }
+            else
+            {
+                label.ReplaceLastMessage(L"Ditemukan dalam waktu " + timer.durationStr());
+                currentStudent = *student;
+            }
+
+            listView.SetText(0, 1, currentStudent.nisn);
+            listView.SetText(1, 1, currentStudent.name);
+            listView.SetText(2, 1, currentStudent.origin);
+            listView.SetText(3, 1, currentStudent.entry);
+            listView.SetText(4, 1, currentStudent.password);
+        }
+        SetEnable(true);
+    }
+
+    void EnqueueRefresh()
+    {
+        UIUtils::MessageSetWait(&label);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
+    }
+
+    LRESULT OnFindClick(UI::CallbackParam)
+    {
+        EnqueueRefresh();
+        return 0;
+    }
+
+    void DoDelete()
+    {
+        ClearAllList();
+        label.ReplaceLastMessage(L"Menghapus data");
+        Timer t;
+
+        t.start();
+        DoRemove(std::move(currentStudent), window.hwnd);
+        t.end();
+
+        label.ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr());
+        label.AddMessage(L"Memuat data");
+    }
+
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        if (currentStudent.entry.empty())
+            return 0;
+
+        UIUtils::MessageSetWait(&label);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoDelete);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+
+        return 0;
+    }
+
+    LRESULT onCreate(UI::CallbackParam param)
+    {
+        entrylabel.SetText(L"Cari Berdasarkan NISN :");
+
+        btnSearch.SetText(L"Cari");
+        btnSearch.commandListener = OnFindClick;
+
+        btnAdd.SetText(L"Tambahkan Data");
+        btnAdd.commandListener = OnAddClick;
+
+        btnDelete.SetText(L"Hapus Data");
+        btnDelete.commandListener = OnDeleteClick;
+
+        listView._dwStyle |= LVS_REPORT | WS_BORDER;
+
+        window.controlsLayout = {
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &entrylabel),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &entryTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnSearch)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
+        UI::LayoutControls(&window, true);
+
+        listView.InsertColumn(L"Prop", 100);
+        listView.InsertRow(L"NISN");
+        listView.InsertRow(L"Nama Siswa");
+        listView.InsertRow(L"Asal Sekolah Siswa");
+        listView.InsertRow(L"Jalur Masuk Siswa");
+        listView.InsertRow(L"Password");
+        listView.InsertColumn(L"Value", 200);
+
+        return 0;
+    }
+
+    void Init()
+    {
+        window.title = L"FindEntry";
         window.registerMessageListener(WM_CREATE, onCreate);
     }
 }
@@ -994,45 +1072,6 @@ namespace MainWindow
 {
     UI::Window window;
     UI::Tabs tabs;
-    UI::StatusBar statusBar;
-    UI::ProgressBar progressBar;
-
-    void DoLoad()
-    {
-
-        progressBar.SetWaiting(true);
-
-        Timer timer;
-        statusBar.SetText(1, L"Memuat data dari CSV");
-
-        {
-            timer.start();
-            CSVReader<CSVReaderIOBuffSync> reader("data/books.csv", ';');
-            reader.startRead();
-
-            int isbnIndex = reader.findHeaderIndex("ISBN");
-            int titleIndex = reader.findHeaderIndex("Book-Title");
-            int authorIndex = reader.findHeaderIndex("Book-Author");
-            int publisherIndex = reader.findHeaderIndex("Publisher");
-            int yearIndex = reader.findHeaderIndex("Year-Of-Publication");
-
-            while (reader.readData())
-            {
-                Book book{
-                    Utils::stringviewToWstring(reader.data[isbnIndex]),
-                    Utils::stringviewToWstring(reader.data[titleIndex]),
-                    Utils::stringviewToWstring(reader.data[authorIndex]),
-                    Utils::stringviewToWstring(reader.data[publisherIndex]),
-                    std::stoi(Utils::stringviewToWstring(reader.data[yearIndex]))};
-                hashTable.put(book.isbn, book);
-                tree.insert(std::move(book));
-            }
-            timer.end();
-        }
-        progressBar.SetWaiting(false);
-
-        statusBar.SetText(1, L"Data dimuat dari CSV dalam " + timer.durationStr());
-    }
 
     LRESULT OnClose(UI::CallbackParam param)
     {
@@ -1055,36 +1094,28 @@ namespace MainWindow
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
-        AddWindow::window.parentHwnd = window.hwnd;
+        AddData::window.parentHwnd = window.hwnd;
 
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &tabs)}};
         window.layouter.paddingBottom = 20;
         UI::LayoutControls(&window, true);
 
-        statusBar.Create(&window);
-        statusBar.SetParts({118, 300});
+        TabAllStudents::Init();
+        tabs.AddPage(L"Semua Siswa", &TabAllStudents::window);
 
-        progressBar.Create(&window, statusBar.hwnd, {9, 2}, {100, 19});
+        TabFindStudentsRange::Init();
+        tabs.AddPage(L"Temukan Siswa Berdasarkan Jalur Masuk dan NSIN", &TabFindStudentsRange::window);
 
-        window.fixedControls = {&statusBar};
+        TabFindNISN::Init();
+        tabs.AddPage(L"Details Siswa", &TabFindNISN::window);
 
-        TabAllBooks::Init();
-        tabs.AddPage(L"Semua Buku", &TabAllBooks::window);
-
-        TabFindBooksRange::Init();
-        tabs.AddPage(L"Temukan Buku dalam Rentang", &TabFindBooksRange::window);
-
-        TabOldBooks::Init();
-        tabs.AddPage(L"Buku Tertua", &TabOldBooks::window);
-
-        TabDetailsBooks::Init();
-        tabs.AddPage(L"Details Buku", &TabDetailsBooks::window);
+        TabStudentAuth::Init();
+        tabs.AddPage(L"Coba Autentikasi", &TabStudentAuth::window);
 
         TabHistoryDelete::Init();
         tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
-        WorkerThread::EnqueueWork(DoLoad);
         EnqueueRefreshAll(&window);
 
         return 0;
@@ -1103,23 +1134,22 @@ namespace MainWindow
 
 void ClearAllList()
 {
-    TabAllBooks::listView.SetRowCount(0);
-    TabFindBooksRange::listView.SetRowCount(0);
-    TabOldBooks::listView.SetRowCount(0);
+    TabAllStudents::listView.SetRowCount(0);
+    TabFindStudentsRange::listView.SetRowCount(0);
 }
 
 void EnqueueRefreshAll(UI::Window *callerWindow)
 {
-    if (callerWindow != &TabAllBooks::window)
-        TabAllBooks::EnqueueRefreshList();
-    if (callerWindow != &TabFindBooksRange::window)
-        TabFindBooksRange::EnqueueRefreshList();
-    if (callerWindow != &TabOldBooks::window)
-        TabOldBooks::EnqueueRefreshList();
-    if (callerWindow != &TabDetailsBooks::window)
-        TabDetailsBooks::EnqueueRefresh();
+    if (callerWindow != &TabAllStudents::window)
+        TabAllStudents::EnqueueRefreshList();
+    if (callerWindow != &TabFindStudentsRange::window)
+        TabFindStudentsRange::EnqueueRefreshList();
+    if (callerWindow != &TabFindNISN::window)
+        TabFindNISN::EnqueueRefresh();
     if (callerWindow != &TabHistoryDelete::window)
         TabHistoryDelete::EnqueueRefreshList();
+    if (callerWindow != &TabStudentAuth::window)
+        TabStudentAuth::EnqueueRefreshList();
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)

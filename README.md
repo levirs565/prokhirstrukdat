@@ -43,3 +43,67 @@ Berikut adalah penjelasan dari file-file pendukung dari proyek kami.
     Berisi kelas yang digunakan untuk membaca file CSV baris per baris
 - `Utils.hpp`, berisi fungsi utilitas kecil
 - `TImer.hpp`, berisi utilitas untuk menghitung durasi dari sautu proses
+
+Data stuktur Red Black Tree, Heap, Top K Largest, Roin Hood Hashmap dan SPSC Queue dibuat dengan menggunakan C++ template (mirip Generic di bahasa lain) sehingga penggunaanya fleksibel dan medukung berbagai tipe data. Struktur Data Stack secara internal digunakan di Red Black Tree dalam proses penghancuran tree.
+
+## Penjelasan Tugas
+
+Tugas kami dibuat dengan menggunakan Window API. Jadi program kami hanya bisa dijalankan di Windows. Program kami telah kami uji di Windows 11. Untuk mencompile tugas kami diperlukan compiler dengan dukungan C++ 11. 
+
+Perintah untuk compile:
+
+```sh
+g++ -Wall --std=c++11 -o File.exe File.cpp
+```
+
+Di semua tugas terdapat fitur history delete dan mempunyai kemampuan restore. Tugas Buku, Rumah Sakit, dan Toko telah menggunakan data dari CSV.
+
+## Buku
+
+Ada di `Perpustakaan.cpp`.
+
+Red Black Tree digunakan untuk menyimpan data Buku yang diurutkan berdasarkan Judul dan ISBN. Data buku akan terurut ascending berdasarkan Judul. Jika ada Judul yang sama maka akan diurutkan berdasarkan ISBN.
+
+Hash digunakan untuk menyimpan buku dengan ISBN sebagai kunci dan data buku sebagai value.
+
+Terdapat fitur untuk pencarian rentang berdasarkan judul. Urutan karakter adalah AaBbCcDd... dst. Ini berarti jika mencari judul dari rentang a sampai b akan mencakup buku dengan judul a, B, dan b. Tetapi tidak termasuk buku berjudul ba. Alasanya adalah karena menurut urutan kamus ba berada setelah b.
+
+Terdapat fitur yang memberikan daftar buku dengan tahun terbit tertua. Ini mengunakan algoritma Top K Largest.
+
+## Rumah Sakit
+
+Ada di `Rumah_Sakit.cpp`
+
+Red Black Tree digunakan untuk menyimpan data Pasien yang diurutkan berdasarkan Nama dan ID. Data pasien akan terurut ascending berdasarkan Nama. Jika ada Nama yang sama maka akan diurutkan berdasarkan ID.
+
+Hash digunakan untuk menyimpan pasien dengan ID sebagai kunci dan data pasien sebagai value.
+
+Terdapat fitur pencarian rentang berdasarkan nama pasien. Aturannya urutan sama seperti di tugas Buku.
+
+Terdapat fitur yang memberikan daftar pasien dengan durasi rawat inap terlama. Ini menggunakan algoritma Top K Largest.
+
+## Sistem Manajemen Toko
+
+Ada di `Kelontong.cpp`
+
+Red Black Tree digunakan untuk menyimpan data produk yang diurutkan berdasarkan Nama dan SKU. Data produk akan terurut ascending berdasarkan Nama. Jika ada Nama yang sama maka akan diurutkan berdasarkan SKU. Terdapat pilihan untuk menampilkan data secara preorder, inorder, dan postorder. Perlu diingat bahwa metode postorder tidak menghasilkan urutan descending
+
+Hash digunakan untuk menyimpan produl dengan SKU sebagai kunci dan data produk sebagai value.
+
+Terdapat fitur pencarian rentang berdasarkan nama produk. Aturannya urutan sama seperti di tugas Buku.
+
+Untuk mencari produk dengan nama awal "susu" bisa digunakan trik dengan cara pencarian rentang dengan nama awalnya adalah "susu" dan nama akhirnya adalah "susv". Bisa juga dengan cara nama awalnya "susu" dan nama akhirnya adalah "susuz". Ini lebih manusiawai daripada cara pertama. Cara ini harus dilakukan manual.
+
+Terdapat fitur yang memberikan daftar produk dengan harga termurah. Ini menggunakan algoritma Top K Largest.
+
+### PPDB
+
+Ada di `ppdb.cpp`.
+
+Red Black Tree digunakan untuk menyimpan data Siswa yang diurutkan berdasarkan Jalur Masuk dan NISN. Data siswa akan terurut ascending berdasarkan Jalur Masuk. Jika ada Jalur Masuk yang sama maka diurutkan berdasarkan NISN. Ini berarti, data Siswa akan terutut ascending berdasarkan NISN jika mempunyai Jalur Masuk sama.
+
+Hash digunakan untuk menyimpan data dengan kunci adalah NISN dan nilai adalah data Siswa.
+
+Terdapat fitur untuk mencari siswa berdasarkan Jalur Masuk dan NISN Awal. Ini akan melakukan pencarian rentang dengan Jalur Masuk sesuai dan NISN dimulai dari NISN input sampai NISN input yang telah diisi nilai 9 dibelakang. Misalkan mencari siswa dengan Jalur Masuk A dan NISN dimulai dari 123 maka pencarian rentang akan dilakukan dengan Jalur Masuk Awal A, Jalur Masuk Akhir B, NISN Awal 123, NISN Akhir 1239999999. Penambahan angka 9 terjadi secara otomatis.
+
+Terdapat fitur autentikasi dengan menggunakan hash. Tetapi fitur ini tidak digunakan pada saat masuk ke aplikasi.

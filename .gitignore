@@ -1,3 +1,4 @@
 *.exe
 *.dll
 .vscode/tasks.json
+README.pdf

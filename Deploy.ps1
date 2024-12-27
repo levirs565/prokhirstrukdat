@@ -40,7 +40,10 @@ function Invoke-Build() {
     Search-Dependencies -Path Perpustakaan.exe
 }
 
-Invoke-Build -SourcePath "Planner_Acara.cpp"
+Invoke-Build -SourcePath "Perpustakaan.cpp"
+Invoke-Build -SourcePath "Rumah_Sakit.cpp"
+Invoke-Build -SourcePath "Kelontong.cpp"
+Invoke-Build -SourcePath "ppdb.cpp"
 
 Write-Output "Copying executable dependencies"
 foreach ($dll in $dependencies) {
