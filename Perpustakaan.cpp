@@ -5,7 +5,6 @@
 #include "Utils.hpp"
 #include "RobinHoodHashMap.hpp"
 #include "HalfSipHash.h"
-#include "MurmurHash3.h"
 #include "unordered_map"
 #include "WorkerThread.hpp"
 #include "TopKLargest.hpp"
