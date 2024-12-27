@@ -115,20 +115,20 @@ namespace Utils
         return res;
     }
 
-    std::chrono::nanoseconds GetSystemDateDifferenceNanos(const SYSTEMTIME a, const SYSTEMTIME& b) {
-        FILETIME fa, fb;
-        if (!SystemTimeToFileTime(&a, &fa)) throw Winapi::Error("Convert first systemtime fail");
-        if (!SystemTimeToFileTime(&b, &fb)) throw Winapi::Error("Convert second systemtime fail");
+    LONGLONG SystemTimeTo100Nanos(const SYSTEMTIME& a) {
+        FILETIME fa;
+        if (!SystemTimeToFileTime(&a, &fa)) throw Winapi::Error("Convert systemtime fail");
 
-        ULARGE_INTEGER ua, ub;
+        ULARGE_INTEGER ua;
 
         ua.LowPart = fa.dwLowDateTime;
         ua.HighPart = fa.dwHighDateTime;
-    
-        ub.LowPart = fb.dwLowDateTime;
-        ub.HighPart = fb.dwHighDateTime;
+        
+        return static_cast<LONGLONG>(ua.QuadPart);
+    }
 
-        LONGLONG diff = static_cast<LONGLONG>(ua.QuadPart) - static_cast<LONGLONG>(ub.QuadPart);
+    std::chrono::nanoseconds GetSystemDateDifferenceNanos(const SYSTEMTIME& a, const SYSTEMTIME& b) {
+        LONGLONG diff = SystemTimeTo100Nanos(a) - SystemTimeTo100Nanos(b);
         diff *= 100;
         return std::chrono::nanoseconds(diff);
     }
