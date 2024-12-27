@@ -797,6 +797,12 @@ namespace UI
             return value;
         }
 
+        std::pair<int, bool> GetValuePair() {
+            bool invalid;
+            int value = static_cast<int>(SendMessageW(_upDown.hwnd, UDM_GETPOS32, 0, reinterpret_cast<LPARAM>(&invalid)));
+            return std::pair<int, bool>(value, invalid);
+        }
+
         SIZE GetDefaultSize() override
         {
             SIZE upDownSz = _upDown.GetDefaultSize();

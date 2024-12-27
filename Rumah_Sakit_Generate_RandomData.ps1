@@ -9,7 +9,7 @@ for ($i = 1; $i -le 1000; $i++) {
     $date = Get-Random -Minimum $Start.Ticks -Maximum $End.Ticks
     $array.Add([pscustomobject]@{
         'ID' = '{0:d9}' -f $i
-        'Name' = "$($nameObj.title) $($nameObj.first) $($nameObj.last)"
+        'Name' = "$($nameObj.first) $($nameObj.last)"
         'Group' = [char] (65 + (Get-Random -Minimum 0 -Maximum 5))
         'StartDate' = ([datetime] $date).ToString("dd/MM/yyyy")
         'EndDate' = ([datetime] (Get-Random -Minimum ([datetime] $date).AddDays(1).Ticks -Maximum $End2.Ticks)).ToString("dd/MM/yyyy")

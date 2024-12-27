@@ -9,6 +9,7 @@
 #include "unordered_map"
 #include "WorkerThread.hpp"
 #include "TopKLargest.hpp"
+#include "UIUtils.hpp"
 #include <stdlib.h>
 
 struct Book
@@ -17,7 +18,7 @@ struct Book
     std::wstring title;
     std::wstring author;
     std::wstring publisher;
-    std::wstring year;
+    int year;
 };
 
 struct BookTitleComparer
@@ -37,7 +38,7 @@ struct BookYearCompareReversed
 {
     int compare(Book *a, Book *b)
     {
-        int compare = Utils::CompareWStringHalfInsensitive(a->year, b->year);
+        int compare = a->year - b->year;
         if (compare != 0)
             return -compare;
 
@@ -76,7 +77,7 @@ namespace AddWindow
     UI::TextBox isbnTextBox;
     UI::TextBox judulTextBox;
     UI::TextBox penulisTextBox;
-    UI::TextBox tahunTextBox;
+    UI::SpinBox tahunSpinBox;
     UI::TextBox penerbitTextBox;
     UI::Button btnAdd;
     Book book;
@@ -97,15 +98,13 @@ namespace AddWindow
 
     LRESULT OnAddClick(UI::CallbackParam param)
     {
+        std::pair<int, bool> tahun = tahunSpinBox.GetValuePair();
         book = Book{
             isbnTextBox.getText(),
             judulTextBox.getText(),
             penulisTextBox.getText(),
             penerbitTextBox.getText(),
-            tahunTextBox.getText()};
-
-        book.year.erase(book.year.find_last_not_of(' ') + 1);
-        book.year.erase(0, book.year.find_first_not_of(' '));
+            tahun.first};
 
         try
         {
@@ -149,31 +148,9 @@ namespace AddWindow
             {
                 throw std::domain_error("Penulis Tidak Boleh Kosong");
             }
-            if (book.year.size() == 0)
+            if (tahun.second)
             {
-                throw std::domain_error("Tahun Terbit Tidak Boleh Kosong");
-            }
-
-            try
-            {
-                size_t pos;
-                int year = std::stoi(book.year, &pos);
-                if (pos != book.year.size())
-                {
-                    throw std::invalid_argument(" ");
-                }
-                if (year < 1000)
-                    throw std::domain_error("Tahun Minimal 1000");
-                if (year > 2500)
-                    throw std::domain_error("Tahun Maximal 2500");
-            }
-            catch (std::out_of_range const &)
-            {
-                throw std::domain_error("Angka Melampaui Batas");
-            }
-            catch (std::invalid_argument const &)
-            {
-                throw std::domain_error("Tahun Harus Berupa Angka");
+                throw std::domain_error("Tahun tidak valid. Tahun harus berupa angka dari 1000 sampai 2500");
             }
 
             if (book.publisher.size() == 0)
@@ -205,7 +182,7 @@ namespace AddWindow
         penulis.SetText(L"Penulis Buku :");
         tahun.SetText(L"Tahun Terbit :");
         penerbit.SetText(L"Penerbit :");
-
+        tahunSpinBox._upDown._dwStyle |= UDS_NOTHOUSANDS;
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
 
@@ -219,13 +196,15 @@ namespace AddWindow
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penulis)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penulisTextBox)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &tahun)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &tahunTextBox)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &tahunSpinBox)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbit)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbitTextBox)},
             {UI::EmptyCell(UI::SIZE_FILL, 23)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &btnAdd)}};
 
         UI::LayoutControls(&window, true);
+
+        tahunSpinBox.SetRange(1000, 2500);
 
         return 0;
     }
@@ -268,17 +247,10 @@ struct BookListView : UI::VListView
         else if (column == 3)
             return book->publisher;
         else if (column == 4)
-            return book->year;
+            return std::to_wstring(book->year);
         return L"";
     }
 };
-
-void MessageSetWait(UI::LabelWorkMessage *message, bool clear = true)
-{
-    if (clear)
-        message->Clear();
-    message->AddMessage(L"Menunggu antrian tugas");
-}
 
 namespace TabHistoryDelete
 {
@@ -338,7 +310,7 @@ namespace TabHistoryDelete
 
     void EnqueueRefreshList()
     {
-        MessageSetWait(&message);
+        UIUtils::MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -376,12 +348,12 @@ namespace TabHistoryDelete
 
         progress.SetWaiting(false);
         message.ReplaceLastMessage(L"Buku telah direstore dalam waktu " + t.durationStr());
-        MessageSetWait(&message, false);
+        UIUtils::MessageSetWait(&message, false);
     }
 
     LRESULT OnRestoreClick(UI::CallbackParam param)
     {
-        MessageSetWait(&message);
+        UIUtils::MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRestore);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -463,7 +435,7 @@ void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progre
     t.end();
 
     message->ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr() + L". Penghapusan mungkin terlihat lama karena proses mendapatkan pilihan dari UI");
-    MessageSetWait(message, false);
+    UIUtils::MessageSetWait(message, false);
     progress->SetWaiting(false);
 }
 
@@ -524,7 +496,7 @@ namespace TabOldBooks
         TopKLargest<Book *, BookYearCompareReversed> topK(count);
         tree.preorder(tree.root, [&](RBNode<Book> *node)
                       {
-            if (node->value.year.size() != 4 && ignoreInvalid) return;
+            if (node->value.year == 0 && ignoreInvalid) return;
             topK.add(&node->value); });
 
         int listSize = topK.getCount();
@@ -544,7 +516,7 @@ namespace TabOldBooks
 
     void EnqueueRefreshList()
     {
-        MessageSetWait(&message);
+        UIUtils::MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -562,7 +534,7 @@ namespace TabOldBooks
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        MessageSetWait(&message);
+        UIUtils::MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -651,13 +623,14 @@ namespace TabFindBooksRange
         listView.SetRowCount(0);
 
         label.ReplaceLastMessage(L"Menemukan data");
+        std::wstring from = fromTextBox.getText(), to = toTextBox.getText();
         Timer timer;
 
         progress.SetWaiting(true);
 
         {
             timer.start();
-            tree.findBetween(Book{L".", fromTextBox.getText()}, {L":", toTextBox.getText()}, [&](RBNode<Book> *node)
+            tree.findBetween(Book{L".", from}, {L":", to}, [&](RBNode<Book> *node)
                              { listView.items.push_back(&node->value); });
             timer.end();
         }
@@ -673,7 +646,7 @@ namespace TabFindBooksRange
 
     void EnqueueRefreshList()
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -691,7 +664,7 @@ namespace TabFindBooksRange
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -809,7 +782,7 @@ namespace TabAllBooks
 
     void EnqueueRefreshList()
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -827,7 +800,7 @@ namespace TabAllBooks
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -928,14 +901,14 @@ namespace TabDetailsBooks
             listView.SetText(1, 1, currentBook.title);
             listView.SetText(2, 1, currentBook.author);
             listView.SetText(3, 1, currentBook.publisher);
-            listView.SetText(4, 1, currentBook.year);
+            listView.SetText(4, 1, std::to_wstring(currentBook.year));
         }
         SetEnable(true);
     }
 
     void EnqueueRefresh()
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -965,7 +938,7 @@ namespace TabDetailsBooks
         if (currentBook.isbn.empty())
             return 0;
 
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -1051,7 +1024,7 @@ namespace MainWindow
                     Utils::stringviewToWstring(reader.data[titleIndex]),
                     Utils::stringviewToWstring(reader.data[authorIndex]),
                     Utils::stringviewToWstring(reader.data[publisherIndex]),
-                    Utils::stringviewToWstring(reader.data[yearIndex])};
+                    std::stoi(Utils::stringviewToWstring(reader.data[yearIndex]))};
                 hashTable.put(book.isbn, book);
                 tree.insert(std::move(book));
             }
@@ -1062,8 +1035,10 @@ namespace MainWindow
         statusBar.SetText(1, L"Data dimuat dari CSV dalam " + timer.durationStr());
     }
 
-    LRESULT OnClose(UI::CallbackParam param) {
-        if (!WorkerThread::IsWorking()) {
+    LRESULT OnClose(UI::CallbackParam param)
+    {
+        if (!WorkerThread::IsWorking())
+        {
             window.Destroy();
             return 0;
         }
@@ -1089,7 +1064,7 @@ namespace MainWindow
         UI::LayoutControls(&window, true);
 
         statusBar.Create(&window);
-        statusBar.SetParts({118, 300, 300, 300});
+        statusBar.SetParts({118, 300});
 
         progressBar.Create(&window, statusBar.hwnd, {9, 2}, {100, 19});
 
