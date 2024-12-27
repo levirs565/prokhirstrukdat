@@ -1083,7 +1083,7 @@ namespace MainWindow
         UI::LayoutControls(&window, true);
 
         statusBar.Create(&window);
-        statusBar.SetParts({118, 300, 300, 300});
+        statusBar.SetParts({118, 300});
 
         progressBar.Create(&window, statusBar.hwnd, {9, 2}, {100, 19});
 

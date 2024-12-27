@@ -988,10 +988,15 @@ namespace TabAllPatient
 namespace MainWindow
 {
     UI::Window window;
+    UI::StatusBar statusBar;
+    UI::ProgressBar progress;
     UI::Tabs tabs;
 
     void DoLoad()
     {
+        progress.SetWaiting(true);
+        statusBar.SetText(1, L"Memuat data dari CSV");
+
         Timer t;
         t.start();
         CSVReader<CSVReaderIOBuffSync> reader("data/Rumah_Sakit.csv", ',');
@@ -1018,6 +1023,10 @@ namespace MainWindow
             hashTable.put(patient.id, patient);
             tree.insert(std::move(patient));
         }
+        t.end();
+
+        statusBar.SetText(1, L"Pemuatan CSV selesai dalam " + t.durationStr());
+        progress.SetWaiting(false);
     }
 
     LRESULT OnCreate(UI::CallbackParam)
@@ -1041,6 +1050,12 @@ namespace MainWindow
 
         TabHistoryDelete::Init();
         tabs.AddPage(L"Riwayat Hapus", &TabHistoryDelete::window);
+
+        statusBar.Create(&window);
+        statusBar.SetParts({118, 300});
+
+        progress.Create(&window, statusBar.hwnd, {9, 2}, {100, 19});
+        window.fixedControls = {&statusBar};
 
         WorkerThread::EnqueueWork(DoLoad);
         EnqueueRefreshAll(&window);
