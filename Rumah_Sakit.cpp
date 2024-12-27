@@ -118,7 +118,8 @@ namespace AddWindow
     UI::Button addButton;
     HospitalPatient patient;
 
-    void DoAdd() {
+    void DoAdd()
+    {
         lastId = patient.id;
 
         Timer t;
@@ -1042,6 +1043,25 @@ namespace MainWindow
         progress.SetWaiting(false);
     }
 
+    LRESULT OnClose(UI::CallbackParam param)
+    {
+        if (!WorkerThread::IsWorking())
+        {
+            window.Destroy();
+            return 0;
+        }
+
+        MessageBoxW(window.hwnd, L"Menunggu tugas selesai", L"Tunggu Dulu", MB_OK);
+
+        return 0;
+    }
+
+    LRESULT OnDestroy(UI::CallbackParam param)
+    {
+        WorkerThread::Destroy();
+        return 0;
+    }
+
     LRESULT OnCreate(UI::CallbackParam)
     {
         AddWindow::window.parentHwnd = window.hwnd;
@@ -1081,6 +1101,8 @@ namespace MainWindow
         window.quitWhenClose = true;
         window.title = L"Rumah Sakit";
         window.registerMessageListener(WM_CREATE, OnCreate);
+        window.registerMessageListener(WM_CLOSE, OnClose);
+        window.registerMessageListener(WM_DESTROY, OnDestroy);
         UI::ShowWindowClass(window);
     }
 }
