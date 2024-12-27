@@ -27,7 +27,7 @@ struct EventNameComparer
 {
     int compare(const Event &a, const Event &b)
     {
-        int compare = Utils::CompareWStringHalfInsensitive(a.name, b.name);
+        int compare = Utils::CompareWStringHalfInsensitive(a.date, b.date);
 
         if (compare != 0)
             return compare;
@@ -1061,7 +1061,7 @@ namespace MainWindow
 
         {
             timer.start();
-            CSVReader<CSVReaderIOBuffSync> reader("data/FestDataFiks.csv", ';');
+            CSVReader<CSVReaderIOBuffSync> reader("data/FestDataFiks1.csv", ';');
             reader.startRead();
 
             int idIndex = reader.findHeaderIndex("Festival_ID");
