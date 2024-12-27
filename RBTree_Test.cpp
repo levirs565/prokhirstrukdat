@@ -1,17 +1,19 @@
 #include "RBTree.hpp"
 
-bool IntCompare(const int &a, const int &b)
+struct IntCompare
 {
-    return a < b;
-}
+    int compare(const int &a, const int &b)
+    {
+        return a - b;
+    }
+};
 
 int main()
 {
 
-    RBTree<int, decltype(&IntCompare)> tree(IntCompare);
+    RBTree<int, IntCompare> tree;
     for (int y = 1; y <= 128; y++)
     {
-        int z = y;
         tree.insert(std::move(y));
         std::cout << "Add " << y << ", depth " << tree.maxLevel(tree.root, 0) << std::endl;
     }
