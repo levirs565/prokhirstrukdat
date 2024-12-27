@@ -64,9 +64,11 @@ void ClearAllList();
 // Jangan merefresh caller window
 void EnqueueRefreshAll(UI::Window *callerWindow);
 
-namespace Register
+namespace AddData
 {
     UI::Window window;
+    UI::ComboBox combobox;
+    UI::Button button;
     UI::Tabs tabs;
     UI::Label label;
     UI::Label NISN;
@@ -81,6 +83,12 @@ namespace Register
     UI::TextBox passwordTextBox;
     UI::Button btnAdd;
     Student student;
+
+    void SetEnable(boolean enable)
+    {
+        combobox.SetEnable(enable);
+        button.SetEnable(enable);
+    }
 
     void DoAdd()
     {
@@ -184,6 +192,8 @@ namespace Register
         btnAdd.commandListener = OnAddClick;
 
         window.controlsLayout = {
+            {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &button)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::EmptyCell(UI::SIZE_FILL, 23)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &NISN)},
@@ -200,6 +210,11 @@ namespace Register
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &btnAdd)}};
 
         UI::LayoutControls(&window, true);
+
+        combobox.AddItem(L"Rapot");
+        combobox.AddItem(L"Zonasi");
+        combobox.AddItem(L"Prestasi");
+        combobox.SetSelectedIndex(1);
 
         return 0;
     }
@@ -246,124 +261,6 @@ struct StudentListView : UI::VListView
         return nullptr;
     }
 };
-
-namespace Login
-{
-    UI::Window window;
-    UI::Tabs tabs;
-    UI::Label label;
-    UI::Label NISN;
-    UI::Label password;
-    UI::TextBox NISNTextBox;
-    UI::TextBox passwordTextBox;
-    UI::Button btnAdd;
-    Student student;
-
-    void DoAdd()
-    {
-        Timer t;
-
-        t.start();
-        hashTable.put(student.nisn, student);
-        tree.insert(std::move(student));
-        t.end();
-
-        std::wstring message = L"Akun PPDB Telah Berhasil Dibuat dalam Waktu " + t.durationStr();
-        MessageBoxW(window.hwnd, message.c_str(), L"Success", MB_OK);
-        window.CloseModal();
-    }
-
-    LRESULT OnAddClick(UI::CallbackParam param)
-    {
-        student = Student{
-            NISNTextBox.getText(),
-            passwordTextBox.getText()};
-
-        try
-        {
-            if (student.nisn.size() == 0)
-            {
-                throw std::domain_error("NISN Tidak Boleh Kosong");
-            }
-
-            if (student.nisn.size() != 10)
-            {
-                throw std::domain_error("NISN Harus 10 Angka");
-            }
-            int Xcount = 0;
-            for (wchar_t ch : student.nisn)
-            {
-                if (ch == L'X')
-                {
-                    Xcount++;
-                    continue;
-                }
-                if (!iswdigit(ch))
-                {
-                    throw std::domain_error("NISN harus berupa angka!");
-                }
-            }
-
-            if ((Xcount == 1 && student.nisn[student.nisn.size() - 1] != L'X') || (Xcount > 1))
-            {
-                throw std::domain_error("X hanya Bisa Di akhir NISN");
-            }
-            if (hashTable.get(student.nisn) != nullptr)
-            {
-                throw std::domain_error("Siswa dengan NISN sama telah ada");
-            }
-            if (student.password.size() == 0)
-            {
-                throw std::domain_error("Password Tidak Boleh Kosong");
-            }
-        }
-
-        catch (std::domain_error const &error)
-        {
-            MessageBoxA(window.hwnd, error.what(), "Error", MB_OK);
-            return 0;
-        }
-
-        btnAdd.SetEnable(false);
-        WorkerThread::EnqueueWork(DoAdd);
-        EnqueueRefreshAll(&window);
-
-        return 0;
-    }
-
-    LRESULT OnCreate(UI::CallbackParam param)
-    {
-        window.InitModal();
-
-        label.SetText(L"Masukkan Data Siswa!");
-        NISN.SetText(L"NISN :");
-        password.SetText(L"Password :");
-        btnAdd.SetText(L"Login");
-        btnAdd.commandListener = OnAddClick;
-
-        window.controlsLayout = {
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
-            {UI::EmptyCell(UI::SIZE_FILL, 23)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &NISN)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &NISNTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &password)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &passwordTextBox)},
-            {UI::EmptyCell(UI::SIZE_FILL, 23)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &btnAdd)}};
-
-        UI::LayoutControls(&window, true);
-
-        return 0;
-    }
-
-    void Show()
-    {
-        window.quitWhenClose = false;
-        window.title = L"Login";
-        window.registerMessageListener(WM_CREATE, OnCreate);
-        UI::ShowWindowClass(window);
-    }
-}
 
 namespace TabHistoryDelete
 {
