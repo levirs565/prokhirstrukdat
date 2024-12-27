@@ -69,7 +69,7 @@ struct RobinHoodHashMap
 
     BucketType *buckets = nullptr;
     size_t bucketSize = 0;
-    size_t minBucketSize = 524288;
+    size_t minBucketSize = 32;
 
     H hasher;
 
@@ -260,13 +260,13 @@ struct RobinHoodHashMap
                 continue;
             }
 
-            bucket->filled = false;
             count--;
 
             BucketType* nextBucket;
             while (true) {
                 i = (i + 1) % bucketSize;
                 nextBucket = &buckets[i];
+                bucket->filled = false;
 
                 if (!nextBucket->filled || nextBucket->psl == 0) {
                     break;
