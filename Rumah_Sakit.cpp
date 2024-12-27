@@ -240,7 +240,7 @@ namespace AddWindow
 
     void Show()
     {
-        window.title = L"Tambah Pasien";
+        window.title = L"Tambah";
         window.registerMessageListener(WM_CREATE, OnCreate);
         UI::ShowWindowClass(window);
     }
@@ -589,7 +589,7 @@ namespace TabDetail
         labelId.SetText(L"ID");
         btnFind.SetText(L"Cari");
         btnFind.commandListener = OnFindClick;
-        btnAdd.SetText(L"Tambah Pasien");
+        btnAdd.SetText(L"Tambah");
         btnAdd.commandListener = OnAddClick;
         btnDelete.SetText(L"Hapus");
         btnDelete.commandListener = OnDeleteClick;
@@ -597,7 +597,7 @@ namespace TabDetail
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
         window.controlsLayout = {{UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &labelId),
-                                  UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &textBoxId),
+                                  UI::ControlCell(100, UI::SIZE_DEFAULT, &textBoxId),
                                   UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnFind)},
                                  {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
                                  {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &message)},
@@ -721,7 +721,7 @@ namespace TabLongestDuration
         btnCopyID.SetText(L"Salin ID");
         btnCopyID.commandListener = OnCopyIDClick;
 
-        btnAdd.SetText(L"Tambah Pasien");
+        btnAdd.SetText(L"Tambah");
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus");
@@ -843,7 +843,7 @@ namespace TabFindRange
         btnCopyID.SetText(L"Salin ID");
         btnCopyID.commandListener = OnCopyIDClick;
 
-        btnAdd.SetText(L"Tambah Pasien");
+        btnAdd.SetText(L"Tambah");
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus");
@@ -966,7 +966,7 @@ namespace TabAllPatient
         btnCopyID.SetText(L"Salin ID");
         btnCopyID.commandListener = OnCopyIDClick;
 
-        btnAdd.SetText(L"Tambah Pasien");
+        btnAdd.SetText(L"Tambah");
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus");
