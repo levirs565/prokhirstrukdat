@@ -92,6 +92,6 @@ Red Black Tree digunakan untuk menyimpan data Siswa yang diurutkan berdasarkan J
 
 Hash digunakan untuk menyimpan data dengan kunci adalah NISN dan nilai adalah data Siswa.
 
-Terdapat fitur untuk mencari siswa berdasarkan Jalur Masuk dan NISN Awal. Ini akan melakukan pencarian rentang dengan Jalur Masuk sesuai dan NISN dimulai dari NISN input sampai NISN input yang telah diisi nilai 9 dibelakang. Misalkan mencari siswa dengan Jalur Masuk A dan NISN dimulai dari 123 maka pencarian rentang akan dilakukan dengan Jalur Masuk Awal A, Jalur Masuk Akhir B, NISN Awal 123, NISN Akhir 1239999999.
+Terdapat fitur untuk mencari siswa berdasarkan Jalur Masuk dan NISN Awal. Ini akan melakukan pencarian rentang dengan Jalur Masuk sesuai dan NISN dimulai dari NISN input sampai NISN input yang telah diisi nilai 9 dibelakang. Misalkan mencari siswa dengan Jalur Masuk A dan NISN dimulai dari 123 maka pencarian rentang akan dilakukan dengan Jalur Masuk Awal A, Jalur Masuk Akhir B, NISN Awal 123, NISN Akhir 1239999999. Penambahan angka 9 terjadi secara otomatis.
 
-Terdapat fitur autentukasi dengan menggunakan hash. Tetapi fitur ini tidak digunakan pada saat masuk ke aplikasi.
+Terdapat fitur autentikasi dengan menggunakan hash. Tetapi fitur ini tidak digunakan pada saat masuk ke aplikasi.

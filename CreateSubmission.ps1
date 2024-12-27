@@ -3,6 +3,8 @@ Remove-Item output -Recurse -Force -Confirm:$false
 Remove-Item *.exe -Force
 Remove-Item *.dll
 
+pandoc README.md -o README.pdf
+
 .\Deploy.ps1
 
 Write-Output "Archiving"
