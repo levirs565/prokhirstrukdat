@@ -14,6 +14,16 @@ struct RBNode
     T value;
 };
 
+/**
+ * Red Black Tree
+ * BST dengan kemampuan auto balance
+ * Mempunyai performa insert lebih cepat daripada AVL
+ * T = Tipe Data Nilai
+ * K = Pembangind
+ * K harus class yang mempunyai fungsi compare dengan signature int compare(const &T a, const &T b)
+ * 
+ * Malas menamai beberapa variabel
+ */
 template <typename T, typename K>
 struct RBTree
 {
