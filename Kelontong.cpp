@@ -27,7 +27,7 @@ struct ProductNameCompare
         if (compare != 0)
             return compare;
 
-        return Utils::CompareWStringHalfInsensitive(a.name, b.name);
+        return Utils::CompareWStringHalfInsensitive(a.sku, b.sku);
     }
 };
 
