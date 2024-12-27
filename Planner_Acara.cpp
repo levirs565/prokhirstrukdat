@@ -41,11 +41,11 @@ struct EventDateCompareReversed
     {
         LONGLONG compare = Utils::SystemTimeTo100Nanos(a->date) - Utils::SystemTimeTo100Nanos(b->date);
         if (compare > 0)
-            return 1;
-        if (compare < 0)
             return -1;
+        if (compare < 0)
+            return 1;
 
-        return Utils::CompareWStringHalfInsensitive(a->id, b->id);
+        return -Utils::CompareWStringHalfInsensitive(a->id, b->id);
     }
 };
 
