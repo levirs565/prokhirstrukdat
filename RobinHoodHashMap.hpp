@@ -59,7 +59,7 @@ inline size_t approx40Percent(size_t x)
  * K adalah tipe data kunci
  * V adalah tipe data nilai
  * H adalah tipe data fungsi yang akan menghasilkan hash
- * H harus berupa fungsi dengan signature uint64_t H(const K& key)
+ * H harus berupa struct yang memenyunyai fungsi hash dengan signature uint64_t hash(const K& key)
  */
 template <typename K, typename V, typename H>
 struct RobinHoodHashMap
@@ -116,7 +116,6 @@ struct RobinHoodHashMap
         size_t currentPsl = 0, i = hash % bucketSize;
 
         BucketType *bucket;
-         __builtin_prefetch(&buckets[i], 0, 0);
         while (true)
         {
             bucket = &buckets[i];
@@ -132,14 +131,13 @@ struct RobinHoodHashMap
             currentPsl++;
 
             i = (i + 1) % bucketSize;
-            __builtin_prefetch(&buckets[i], 0, 0);
         }
     }
 
     /**
      * Menambahkan pasangan kunci dan nilai ke hash table
      * 
-     * Algortma:
+     * Algoritma:
      * 1. Cari hash dari kunci
      * 2. Buat bucket baru dan isi nilai bucket dengan psl = 0, bucket ini akan disebut bucket baru
      * 3. Isi nilai i dengan hash % ukuran bucket
@@ -172,7 +170,6 @@ struct RobinHoodHashMap
 
         size_t i = hash % bucketSize;
         BucketType *bucket;
-         __builtin_prefetch(&buckets[i], 0, 0);
         while (true)
         {
             bucket = &buckets[i];
@@ -197,7 +194,6 @@ struct RobinHoodHashMap
             current.psl++;
 
             i = (i + 1) % bucketSize;
-             __builtin_prefetch(&buckets[i], 0, 0);
         }
 
         *bucket = current;
@@ -242,6 +238,10 @@ struct RobinHoodHashMap
         internalInsert(key, value);
     }
 
+    /**
+     * Algoritmanya mirip get
+     * Setelah menemukan kunci yang dihapus, maka kunci setelahnya dengan psl > 0, akan digeser ke kiri 
+     */
     bool remove(const K& key) {
         const uint64_t hash = hasher.hash(key);
 
@@ -275,6 +275,10 @@ struct RobinHoodHashMap
                 nextBucket->psl--;
                 *bucket = *nextBucket;
                 bucket = nextBucket;
+            }
+
+            if (count > minBucketSize && count < approx40Percent(bucketSize)) {
+                resize(bucketSize / 2);
             }
 
             return true;
