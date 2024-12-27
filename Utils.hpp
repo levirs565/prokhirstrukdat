@@ -2,6 +2,7 @@
 #include <string>
 #include <cwctype>
 #include "Winapi.hpp"
+#include <chrono>
 
 namespace Utils
 {
@@ -112,5 +113,27 @@ namespace Utils
         res.wMonth = std::stoi(in.substr(firstSlash + 1, secondSlash - firstSlash - 1));
         res.wYear = std::stoi(in.substr(secondSlash + 1));
         return res;
+    }
+
+    std::chrono::nanoseconds GetSystemDateDifferenceNanos(const SYSTEMTIME a, const SYSTEMTIME& b) {
+        FILETIME fa, fb;
+        if (!SystemTimeToFileTime(&a, &fa)) throw Winapi::Error("Convert first systemtime fail");
+        if (!SystemTimeToFileTime(&b, &fb)) throw Winapi::Error("Convert second systemtime fail");
+
+        ULARGE_INTEGER ua, ub;
+
+        ua.LowPart = fa.dwLowDateTime;
+        ua.HighPart = fa.dwHighDateTime;
+    
+        ub.LowPart = fb.dwLowDateTime;
+        ub.HighPart = fb.dwHighDateTime;
+
+        LONGLONG diff = static_cast<LONGLONG>(ua.QuadPart) - static_cast<LONGLONG>(ub.QuadPart);
+        diff *= 100;
+        return std::chrono::nanoseconds(diff);
+    }
+
+    int GetSystemDateDifferenceDays(const SYSTEMTIME& a, const SYSTEMTIME& b) {
+        return std::chrono::duration_cast<std::chrono::hours>(GetSystemDateDifferenceNanos(a, b)).count() / 24;
     }
 }
