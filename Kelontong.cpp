@@ -5,7 +5,6 @@
 #include "Utils.hpp"
 #include "RobinHoodHashMap.hpp"
 #include "HalfSipHash.h"
-#include "MurmurHash3.h"
 #include "unordered_map"
 #include "WorkerThread.hpp"
 #include "TopKLargest.hpp"
@@ -94,7 +93,7 @@ namespace AddWindow
         Timer t;
 
         t.start();
-        hashTable.put(product.name, product);
+        hashTable.put(product.sku, product);
         tree.insert(std::move(product));
         t.end();
 
@@ -259,18 +258,18 @@ struct ProductListView : UI::VListView
         InsertColumn(L"Harga", 100);
     }
 
-    const std::wstring *OnGetItem(int row, int column) override
+    const std::wstring OnGetItem(int row, int column) override
     {
         Product *product = items[row];
         if (column == 0)
-            return &product->sku;
+            return product->sku;
         else if (column == 1)
-            return &product->name;
+            return product->name;
         else if (column == 2)
-            return &product->category;
+            return product->category;
         else if (column == 3)
-            return &product->price;
-        return nullptr;
+            return product->price;
+        return L"";
     }
 };
 
@@ -370,7 +369,7 @@ namespace TabHistoryDelete
         {
             removeHistoryTree.remove(product);
 
-            hashTable.put(product.name, product);
+            hashTable.put(product.sku, product);
             tree.insert(std::move(product));
         }
         t.end();
@@ -435,7 +434,7 @@ void DoRemove(Product &&product, HWND window)
     if (!tree.remove(product))
         MessageBoxA(window, "Penghapusan di RBTree gagal", "Gagal", MB_OK);
 
-    if (!hashTable.remove(product.name))
+    if (!hashTable.remove(product.sku))
         MessageBoxA(window, "Penghapusan di RobinHoodHashTable gagal", "Gagal", MB_OK);
 
     removeHistoryTree.insert(std::move(product));
@@ -468,7 +467,7 @@ void DoRemoveByListViewSelection(ProductListView *listView, UI::ProgressBar *pro
     progress->SetWaiting(false);
 }
 
-void CopyNameByListViewSelection(UI::ListView *listView)
+void CopySKUByListViewSelection(ProductListView *listView)
 {
     try
     {
@@ -479,8 +478,8 @@ void CopyNameByListViewSelection(UI::ListView *listView)
         if (focusedIndexs.size() > 1)
             throw std::domain_error("Item yang dipilih lebih dari 1");
 
-        std::wstring name = listView->GetText(focusedIndexs[0], 1);
-        Utils::CopyToClipboard(name);
+        std::wstring sku = listView->items[focusedIndexs[0]]->sku;
+        Utils::CopyToClipboard(sku);
     }
     catch (std::domain_error const &e)
     {
@@ -496,7 +495,7 @@ namespace TabCheapProducts
     UI::Button findButton;
     UI::ProgressBar progress;
     UI::LabelWorkMessage message;
-    UI::Button btnAdd, btnDelete, btnCopyName;
+    UI::Button btnAdd, btnDelete, btnCopySKU;
     ProductListView listView;
 
     void SetEnable(boolean enable)
@@ -505,7 +504,7 @@ namespace TabCheapProducts
         findButton.SetEnable(enable);
         btnAdd.SetEnable(enable);
         btnDelete.SetEnable(enable);
-        btnCopyName.SetEnable(enable);
+        btnCopySKU.SetEnable(enable);
         listView.SetEnable(enable);
     }
 
@@ -516,7 +515,6 @@ namespace TabCheapProducts
         progress.SetWaiting(true);
 
         int count = spinBox.GetValue();
-        bool ignoreInvalidPrice = true;
 
         Timer timer;
         timer.start();
@@ -569,7 +567,7 @@ namespace TabCheapProducts
 
     LRESULT OnCopyNameClick(UI::CallbackParam param)
     {
-        CopyNameByListViewSelection(&listView);
+        CopySKUByListViewSelection(&listView);
         return 0;
     }
 
@@ -580,8 +578,8 @@ namespace TabCheapProducts
         findButton.SetText(L"Temukan");
         findButton.commandListener = OnFindClick;
 
-        btnCopyName.SetText(L"Salin Nama Produk");
-        btnCopyName.commandListener = OnCopyNameClick;
+        btnCopySKU.SetText(L"Salin SKU Produk");
+        btnCopySKU.commandListener = OnCopyNameClick;
 
         btnAdd.SetText(L"Tambahkan Produk");
         btnAdd.commandListener = OnAddClick;
@@ -597,7 +595,7 @@ namespace TabCheapProducts
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &message)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
-             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnCopyName),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnCopySKU),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
 
@@ -622,7 +620,7 @@ namespace TabFindProductsRange
     UI::Label fromLabel, toLabel;
     UI::TextBox fromTextBox, toTextBox;
     UI::Button btnFind;
-    UI::Button btnAdd, btnDelete, btnCopyName;
+    UI::Button btnAdd, btnDelete, btnCopySKU;
     UI::ProgressBar progress;
     UI::LabelWorkMessage label;
     ProductListView listView;
@@ -634,7 +632,7 @@ namespace TabFindProductsRange
         btnFind.SetEnable(enable);
         btnAdd.SetEnable(enable);
         btnDelete.SetEnable(enable);
-        btnCopyName.SetEnable(enable);
+        btnCopySKU.SetEnable(enable);
         listView.SetEnable(enable);
     }
 
@@ -694,7 +692,7 @@ namespace TabFindProductsRange
 
     LRESULT OnCopyNameClick(UI::CallbackParam param)
     {
-        CopyNameByListViewSelection(&listView);
+        CopySKUByListViewSelection(&listView);
         return 0;
     }
 
@@ -706,8 +704,8 @@ namespace TabFindProductsRange
         btnFind.SetText(L"Cari");
         btnFind.commandListener = OnFindClick;
 
-        btnCopyName.SetText(L"Salin Nama Produk");
-        btnCopyName.commandListener = OnCopyNameClick;
+        btnCopySKU.SetText(L"Salin SKU Produk");
+        btnCopySKU.commandListener = OnCopyNameClick;
 
         btnAdd.SetText(L"Tambahkan Produk");
         btnAdd.commandListener = OnAddClick;
@@ -725,7 +723,7 @@ namespace TabFindProductsRange
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
-             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnCopyName),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnCopySKU),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
 
@@ -748,7 +746,7 @@ namespace TabAllProducts
     UI::Button button;
     UI::Button btnAdd;
     UI::Button btnDelete;
-    UI::Button btnCopyName;
+    UI::Button btnCopySKU;
     UI::ProgressBar progress;
     UI::LabelWorkMessage label;
     ProductListView listView;
@@ -759,7 +757,7 @@ namespace TabAllProducts
         button.SetEnable(enable);
         btnAdd.SetEnable(enable);
         btnDelete.SetEnable(enable);
-        btnCopyName.SetEnable(enable);
+        btnCopySKU.SetEnable(enable);
         listView.SetEnable(enable);
     }
 
@@ -830,7 +828,7 @@ namespace TabAllProducts
 
     LRESULT OnCopyNameClick(UI::CallbackParam param)
     {
-        CopyNameByListViewSelection(&listView);
+        CopySKUByListViewSelection(&listView);
         return 0;
     }
 
@@ -845,8 +843,8 @@ namespace TabAllProducts
         btnDelete.SetText(L"Hapus Produk");
         btnDelete.commandListener = OnDeleteClick;
 
-        btnCopyName.SetText(L"Salin Nama Produk");
-        btnCopyName.commandListener = OnCopyNameClick;
+        btnCopySKU.SetText(L"Salin SKU Produk");
+        btnCopySKU.commandListener = OnCopyNameClick;
 
         window.controlsLayout = {
             {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
@@ -855,7 +853,7 @@ namespace TabAllProducts
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
-             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnCopyName),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnCopySKU),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
@@ -881,7 +879,7 @@ namespace TabDetailsProducts
     UI::LabelWorkMessage label;
     UI::Label namelabel;
     UI::Button btnSearch;
-    UI::TextBox nameTextBox;
+    UI::TextBox skuTextBox;
     UI::StatusBar statusBar;
     UI::ListView listView;
     UI::Button btnAdd;
@@ -898,13 +896,13 @@ namespace TabDetailsProducts
 
     void DoRefresh()
     {
-        label.ReplaceLastMessage(L"Mencari produk sesuai dengan Nama Produk");
+        label.ReplaceLastMessage(L"Mencari produk sesuai dengan SKU");
         Timer timer;
 
         {
-            std::wstring name = nameTextBox.getText();
+            std::wstring sku = skuTextBox.getText();
             timer.start();
-            Product *produk = hashTable.get(name);
+            Product *produk = hashTable.get(sku);
             timer.end();
             if (produk == nullptr)
             {
@@ -968,7 +966,7 @@ namespace TabDetailsProducts
 
     LRESULT onCreate(UI::CallbackParam param)
     {
-        namelabel.SetText(L"Cari Berdasarkan Nama Produk :");
+        namelabel.SetText(L"Cari Berdasarkan SKU :");
 
         btnSearch.SetText(L"Cari");
         btnSearch.commandListener = OnFindClick;
@@ -983,7 +981,7 @@ namespace TabDetailsProducts
 
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &namelabel),
-             UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &nameTextBox),
+             UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &skuTextBox),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnSearch)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
@@ -1040,7 +1038,7 @@ namespace MainWindow
                     Utils::stringviewToWstring(reader.data[nameIndex]),
                     Utils::stringviewToWstring(reader.data[categoryIndex]),
                     Utils::stringviewToWstring(reader.data[priceIndex])};
-                hashTable.put(product.name, product);
+                hashTable.put(product.sku, product);
                 tree.insert(std::move(product));
             }
             timer.end();
