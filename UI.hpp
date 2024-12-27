@@ -17,6 +17,7 @@
 #include <limits>
 #include <stdexcept>
 #include <iostream>
+#include <strsafe.h>
 
 namespace UI
 {
@@ -417,6 +418,11 @@ namespace UI
             _cmdListeners.emplace(cmd, callback);
         }
 
+        void registerNotifyListener(UINT_PTR cmd, UINT code, CallbackType callback)
+        {
+            _notifyListeners.emplace(std::make_pair(cmd, code), callback);
+        }
+
         /**
          * Menreset isi dari windows
          * Note: Jangan memenggail fungsi ini
@@ -703,6 +709,40 @@ namespace UI
         }
     };
 
+    struct DateTimePicker : Control
+    {
+        void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
+        {
+            _className = DATETIMEPICK_CLASSW;
+            Control::Create(window, hParent, pos, size);
+
+            ApplyDefaultFont();
+        }
+
+        SIZE GetDefaultSize() override
+        {
+            return {110, 23};
+        }
+
+        void SetValue(SYSTEMTIME value)
+        {
+            DateTime_SetSystemtime(hwnd, GDT_VALID, &value);
+        }
+
+        void SetRange(SYSTEMTIME from, SYSTEMTIME to)
+        {
+            SYSTEMTIME array[2] = {from, to};
+            DateTime_SetRange(hwnd, GDTR_MIN | GDTR_MAX, array);
+        }
+
+        SYSTEMTIME GetValue()
+        {
+            SYSTEMTIME res;
+            DateTime_GetSystemtime(hwnd, &res);
+            return res;
+        }
+    };
+
     struct UpDown : Control
     {
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
@@ -755,6 +795,12 @@ namespace UI
                 SetValue(value);
             }
             return value;
+        }
+
+        std::pair<int, bool> GetValuePair() {
+            bool invalid;
+            int value = static_cast<int>(SendMessageW(_upDown.hwnd, UDM_GETPOS32, 0, reinterpret_cast<LPARAM>(&invalid)));
+            return std::pair<int, bool>(value, invalid);
         }
 
         SIZE GetDefaultSize() override
@@ -981,7 +1027,6 @@ namespace UI
     {
         size_t _columnCount = 0;
 
-
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
             _dwStyle |= LVS_OWNERDATA;
@@ -999,19 +1044,16 @@ namespace UI
             NMLVDISPINFOW *info = reinterpret_cast<NMLVDISPINFOW *>(param.lParam);
             if ((info->item.mask & LVIF_TEXT) && info->item.iSubItem < (int)_columnCount)
             {
-                const std::wstring *text = OnGetItem(info->item.iItem, info->item.iSubItem);
-
-                if (text != nullptr) {
-                    info->item.pszText = const_cast<wchar_t*>(text->c_str());
-                }
+                const std::wstring text = OnGetItem(info->item.iItem, info->item.iSubItem);
+                StringCchCopyW(info->item.pszText, info->item.cchTextMax, text.c_str());
             }
 
             return 0;
         }
 
-        virtual const std::wstring *OnGetItem(int row, int column)
+        virtual const std::wstring OnGetItem(int row, int column)
         {
-            return nullptr;
+            return L"";
         }
 
         void InsertColumn(const std::wstring &title, int width)

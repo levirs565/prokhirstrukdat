@@ -187,10 +187,10 @@ struct CSVReader
     {
         size = 0;
         char ch = io.get();
-        io.next();
-
-        if (ch == std::char_traits<char>::eof())
+        if (ch == std::char_traits<char>::eof() || ch == separator || ch == '\n')
             return;
+
+        io.next();
 
         bool startWithQuote = ch == '"';
         bool insideQuote = startWithQuote;
