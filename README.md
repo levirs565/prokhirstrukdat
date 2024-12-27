@@ -98,6 +98,18 @@ Untuk mencari produk dengan nama awal "susu" bisa digunakan trik dengan cara pen
 
 Terdapat fitur yang memberikan daftar produk dengan harga termurah. Ini menggunakan algoritma Top K Largest.
 
+## Penjadwalan Acara
+
+Ada di `Planner_Acara.cpp`
+
+Red Black Tree digunakan untuk menyimpan data Acara yang diurutkan berdasarkan Nama dan ID. Data Acara akan terurut ascending berdasarkan Nama. Jika ada Nama yang sama maka akan diurutkan berdasarkan ID.
+
+Hash digunakan untuk menyimpan Acara dengan ID sebagai kunci dan data Acara sebagai value.
+
+Terdapat fitur pencarian rentang berdasarkan nama Acara. Aturannya urutan sama seperti di tugas Buku.
+
+Terdapat fitur yang memberikan daftar acara yang diurutkan berdasarkan tanggal/waktu. Ini menggunakan algoritma Top K Largest.
+
 ### PPDB
 
 Ada di `ppdb.cpp`.
