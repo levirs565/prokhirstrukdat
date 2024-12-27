@@ -6,6 +6,8 @@
 #include "RobinHoodHashMap.hpp"
 #include "CSVReader.hpp"
 #include "TopKLargest.hpp"
+#include "UIUtils.hpp"
+#include "Timer.hpp"
 #include <sstream>
 #include <iomanip>
 
@@ -95,6 +97,7 @@ RBTree<HospitalPatient, HospitalPatientNameComparer> tree, deleteHistoryTree;
 RobinHoodHashMap<std::wstring, HospitalPatient, HospitalPatientIDHasher> hashTable;
 
 void ClearAllList();
+void EnqueueRefreshAll(UI::Window *window);
 
 std::wstring GenNextId()
 {
@@ -246,7 +249,7 @@ struct PatientListView : UI::VListView
         UI::VListView::Create(window, hParent, pos, size);
 
         SetExtendedStyle(LVS_EX_FULLROWSELECT);
-        
+
         InsertColumn(L"ID", 100);
         InsertColumn(L"Nama", 100);
         InsertColumn(L"Golongan", 100);
@@ -297,13 +300,20 @@ namespace TabHistoryDelete
         listView.SetEnable(enable);
     }
 
-    void DoRefresh() {
+    void DoRefresh()
+    {
+        message.ReplaceLastMessage(L"Memuat data");
+        progress.SetWaiting(true);
+
         listView.SetRowCount(0);
         listView.items.resize(deleteHistoryTree.count);
         int type = comboType.GetSelectedIndex();
 
+        Timer t;
+        t.start();
         size_t current = 0;
-        auto visitor = [&] (RBNode<HospitalPatient> *node) {
+        auto visitor = [&](RBNode<HospitalPatient> *node)
+        {
             listView.items[current] = &node->value;
             current++;
         };
@@ -315,12 +325,24 @@ namespace TabHistoryDelete
         else if (type == 2)
             deleteHistoryTree.postorder(deleteHistoryTree.root, visitor);
 
+        t.end();
+
         listView.SetRowCount(listView.items.size());
+        message.ReplaceLastMessage(L"Data dimuat dalam " + t.durationStr());
+        progress.SetWaiting(false);
+        SetEnable(true);
+    }
+
+    void EnqueueRefresh()
+    {
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
     {
-        DoRefresh();
+        EnqueueRefresh();
         return 0;
     }
 
@@ -355,7 +377,8 @@ namespace TabHistoryDelete
     }
 }
 
-void DoRemove(HospitalPatient &&patient, HWND window) {
+void DoRemove(HospitalPatient &&patient, HWND window)
+{
     if (!hashTable.remove(patient.id))
         MessageBoxA(window, "Penghapusan di RobinHoodHashTable gagal", "Gagal", MB_OK);
     if (!tree.remove(patient))
@@ -364,26 +387,34 @@ void DoRemove(HospitalPatient &&patient, HWND window) {
     deleteHistoryTree.insert(std::move(patient));
 }
 
-void DoRemoveByListViewSelection(PatientListView *list) {
+void DoRemoveByListViewSelection(PatientListView *list)
+{
     std::vector<HospitalPatient> selected;
     for (int v : list->GetSelectedIndex())
         selected.push_back(*list->items[v]);
-    
+
     ClearAllList();
 
-    for (HospitalPatient& patient : selected) {
+    for (HospitalPatient &patient : selected)
+    {
         DoRemove(std::move(patient), list->_window->hwnd);
     }
 }
 
-void CopyIDByListViewSelection(PatientListView *list) {
-    try {
+void CopyIDByListViewSelection(PatientListView *list)
+{
+    try
+    {
         std::vector<int> selections = list->GetSelectedIndex();
-        if (selections.size() == 0) throw std::domain_error("Tidak ada pasien yang dipilih");
-        if (selections.size() > 1) throw std::domain_error("Pilihan lebih dari 1");
+        if (selections.size() == 0)
+            throw std::domain_error("Tidak ada pasien yang dipilih");
+        if (selections.size() > 1)
+            throw std::domain_error("Pilihan lebih dari 1");
 
         Utils::CopyToClipboard(list->items[selections[0]]->id);
-    } catch (std::domain_error const& e) {
+    }
+    catch (std::domain_error const &e)
+    {
         MessageBoxA(list->_window->hwnd, e.what(), "Gagal", MB_OK);
     }
 }
@@ -399,24 +430,6 @@ namespace TabDetail
     UI::ListView listView;
     HospitalPatient patient;
 
-    void DoRefresh()
-    {
-        HospitalPatient *result = hashTable.get(textBoxId.getText());
-        if (result == nullptr)
-            patient = HospitalPatient{};
-        else
-            patient = *result;
-
-        listView.SetText(0, 1, patient.id);
-        listView.SetText(1, 1, patient.name);
-        listView.SetText(2, 1, GetPatientGroupName(patient.group));
-        listView.SetText(3, 1, std::to_wstring(patient.GetDayPrice()));
-        listView.SetText(4, 1, Utils::SystemTimeToDateStr(patient.start));
-        listView.SetText(5, 1, Utils::SystemTimeToDateStr(patient.end));
-        listView.SetText(6, 1, std::to_wstring(patient.GetDurationDay()) + L" hari");
-        listView.SetText(7, 1, std::to_wstring(patient.GetTotalPrice()));
-    }
-
     void SetEnable(bool enable)
     {
         textBoxId.SetEnable(enable);
@@ -426,9 +439,58 @@ namespace TabDetail
         listView.SetEnable(enable);
     }
 
+    void DoRefresh()
+    {
+        message.ReplaceLastMessage(L"Mencari data");
+        progress.SetWaiting(true);
+        std::wstring id = textBoxId.getText();
+
+        Timer t;
+        t.start();
+        HospitalPatient *result = hashTable.get(id);
+        t.end();
+
+        if (result == nullptr)
+        {
+            patient = HospitalPatient{};
+            message.ReplaceLastMessage(L"Data tidak ditemukan. Memerlukan " + t.durationStr());
+            listView.SetText(0, 1, L"");
+            listView.SetText(1, 1, L"");
+            listView.SetText(2, 1, L"");
+            listView.SetText(3, 1, L"");
+            listView.SetText(4, 1, L"");
+            listView.SetText(5, 1, L"");
+            listView.SetText(6, 1, L"");
+            listView.SetText(7, 1, L"");
+        }
+        else
+        {
+            patient = *result;
+            message.ReplaceLastMessage(L"Data ditemukan dalam " + t.durationStr());
+            listView.SetText(0, 1, patient.id);
+            listView.SetText(1, 1, patient.name);
+            listView.SetText(2, 1, GetPatientGroupName(patient.group));
+            listView.SetText(3, 1, std::to_wstring(patient.GetDayPrice()));
+            listView.SetText(4, 1, Utils::SystemTimeToDateStr(patient.start));
+            listView.SetText(5, 1, Utils::SystemTimeToDateStr(patient.end));
+            listView.SetText(6, 1, std::to_wstring(patient.GetDurationDay()) + L" hari");
+            listView.SetText(7, 1, std::to_wstring(patient.GetTotalPrice()));
+        }
+
+        progress.SetWaiting(false);
+        SetEnable(true);
+    }
+
+    void EnqueueRefresh()
+    {
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
+    }
+
     LRESULT OnFindClick(UI::CallbackParam param)
     {
-        DoRefresh();
+        EnqueueRefresh();
         return 0;
     }
 
@@ -498,9 +560,14 @@ namespace TabLongestDuration
 
     void DoRefresh()
     {
+        message.ReplaceLastMessage(L"Memproses data");
+        progress.SetWaiting(true);
+
         listView.SetRowCount(0);
         int count = spinCount.GetValue();
 
+        Timer t;
+        t.start();
         TopKLargest<HospitalPatient *, HospitalPatientDurationReverseComparer> topK(count);
 
         tree.preorder(tree.root, [&](RBNode<HospitalPatient> *node)
@@ -513,16 +580,29 @@ namespace TabLongestDuration
         {
             listView.items[i] = topK.removeTop();
         }
+        t.end();
+
         listView.SetRowCount(realCount);
+        message.ReplaceLastMessage(L"Data dimuat dalam " + t.durationStr());
+        progress.SetWaiting(false);
+        SetEnable(true);
+    }
+
+    void EnqueueRefresh()
+    {
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
     {
-        DoRefresh();
+        EnqueueRefresh();
         return 0;
     }
 
-    LRESULT OnCopyIDClick(UI::CallbackParam param) {
+    LRESULT OnCopyIDClick(UI::CallbackParam param)
+    {
         CopyIDByListViewSelection(&listView);
         return 0;
     }
@@ -577,20 +657,6 @@ namespace TabFindRange
     UI::TextBox textBoxFrom, textBoxTo;
     PatientListView listView;
 
-    void DoRefresh()
-    {
-        listView.SetRowCount(0);
-        listView.items.clear();
-
-        tree.findBetween(HospitalPatient{L".", textBoxFrom.getText()}, HospitalPatient{L":", textBoxTo.getText()},
-                         [&](RBNode<HospitalPatient> *node)
-                         {
-                             listView.items.push_back(&node->value);
-                         });
-
-        listView.SetRowCount(listView.items.size());
-    }
-
     void SetEnable(bool enable)
     {
         textBoxFrom.SetEnable(enable);
@@ -602,13 +668,45 @@ namespace TabFindRange
         listView.SetEnable(enable);
     }
 
+    void DoRefresh()
+    {
+        message.ReplaceLastMessage(L"Mencari data");
+        progress.SetWaiting(true);
+
+        listView.SetRowCount(0);
+        listView.items.clear();
+        std::wstring from = textBoxFrom.getText(), to = textBoxTo.getText();
+
+        Timer t;
+        t.start();
+        tree.findBetween(HospitalPatient{L".", from}, HospitalPatient{L":", to},
+                         [&](RBNode<HospitalPatient> *node)
+                         {
+                             listView.items.push_back(&node->value);
+                         });
+        t.end();
+
+        listView.SetRowCount(listView.items.size());
+        message.ReplaceLastMessage(L"Data dimuat dalam " + t.durationStr());
+        progress.SetWaiting(false);
+        SetEnable(true);
+    }
+
+    void EnqueueRefresh()
+    {
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
+    }
+
     LRESULT OnFindClick(UI::CallbackParam param)
     {
-        DoRefresh();
+        EnqueueRefresh();
         return 0;
     }
 
-    LRESULT OnCopyIDClick(UI::CallbackParam param) {
+    LRESULT OnCopyIDClick(UI::CallbackParam param)
+    {
         CopyIDByListViewSelection(&listView);
         return 0;
     }
@@ -673,10 +771,15 @@ namespace TabAllPatient
 
     void DoRefresh()
     {
+        message.ReplaceLastMessage(L"Memuat data");
+        progress.SetWaiting(true);
+
         listView.SetRowCount(0);
         listView.items.resize(tree.count);
         int selectedIndex = comboType.GetSelectedIndex();
 
+        Timer t;
+        t.start();
         size_t current = 0;
         auto visitor = [&](RBNode<HospitalPatient> *node)
         {
@@ -690,17 +793,29 @@ namespace TabAllPatient
             tree.inorder(tree.root, visitor);
         else if (selectedIndex == 2)
             tree.postorder(tree.root, visitor);
+        t.end();
 
         listView.SetRowCount(tree.count);
+        message.ReplaceLastMessage(L"Data dimuat dalam " + t.durationStr());
+        progress.SetWaiting(false);
+        SetEnable(true);
+    }
+
+    void EnqueueRefresh()
+    {
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
     {
-        DoRefresh();
+        EnqueueRefresh();
         return 0;
     }
 
-    LRESULT OnCopyIDClick(UI::CallbackParam param) {
+    LRESULT OnCopyIDClick(UI::CallbackParam param)
+    {
         CopyIDByListViewSelection(&listView);
         return 0;
     }
@@ -751,6 +866,8 @@ namespace MainWindow
 
     void DoLoad()
     {
+        Timer t;
+        t.start();
         CSVReader<CSVReaderIOBuffSync> reader("data/Rumah_Sakit.csv", ',');
 
         reader.startRead();
@@ -799,8 +916,8 @@ namespace MainWindow
         TabHistoryDelete::Init();
         tabs.AddPage(L"Riwayat Hapus", &TabHistoryDelete::window);
 
-        DoLoad();
-        TabAllPatient::DoRefresh();
+        WorkerThread::EnqueueWork(DoLoad);
+        EnqueueRefreshAll(&window);
 
         return 0;
     }
@@ -814,10 +931,25 @@ namespace MainWindow
     }
 }
 
-void ClearAllList() {
+void ClearAllList()
+{
     TabAllPatient::listView.SetRowCount(0);
     TabFindRange::listView.SetRowCount(0);
     TabLongestDuration::listView.SetRowCount(0);
+}
+
+void EnqueueRefreshAll(UI::Window *window)
+{
+    if (window != &TabAllPatient::window)
+        TabAllPatient::EnqueueRefresh();
+    if (window != &TabFindRange::window)
+        TabFindRange::EnqueueRefresh();
+    if (window != &TabLongestDuration::window)
+        TabLongestDuration::EnqueueRefresh();
+    if (window != &TabDetail::window)
+        TabDetail::EnqueueRefresh();
+    if (window != &TabHistoryDelete::window)
+        TabHistoryDelete::EnqueueRefresh();
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)

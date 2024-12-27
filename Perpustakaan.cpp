@@ -9,6 +9,7 @@
 #include "unordered_map"
 #include "WorkerThread.hpp"
 #include "TopKLargest.hpp"
+#include "UIUtils.hpp"
 #include <stdlib.h>
 
 struct Book
@@ -273,13 +274,6 @@ struct BookListView : UI::VListView
     }
 };
 
-void MessageSetWait(UI::LabelWorkMessage *message, bool clear = true)
-{
-    if (clear)
-        message->Clear();
-    message->AddMessage(L"Menunggu antrian tugas");
-}
-
 namespace TabHistoryDelete
 {
     UI::Window window;
@@ -338,7 +332,7 @@ namespace TabHistoryDelete
 
     void EnqueueRefreshList()
     {
-        MessageSetWait(&message);
+        UIUtils::MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -376,12 +370,12 @@ namespace TabHistoryDelete
 
         progress.SetWaiting(false);
         message.ReplaceLastMessage(L"Buku telah direstore dalam waktu " + t.durationStr());
-        MessageSetWait(&message, false);
+        UIUtils::MessageSetWait(&message, false);
     }
 
     LRESULT OnRestoreClick(UI::CallbackParam param)
     {
-        MessageSetWait(&message);
+        UIUtils::MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRestore);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -463,7 +457,7 @@ void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progre
     t.end();
 
     message->ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr() + L". Penghapusan mungkin terlihat lama karena proses mendapatkan pilihan dari UI");
-    MessageSetWait(message, false);
+    UIUtils::MessageSetWait(message, false);
     progress->SetWaiting(false);
 }
 
@@ -544,7 +538,7 @@ namespace TabOldBooks
 
     void EnqueueRefreshList()
     {
-        MessageSetWait(&message);
+        UIUtils::MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -562,7 +556,7 @@ namespace TabOldBooks
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        MessageSetWait(&message);
+        UIUtils::MessageSetWait(&message);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -673,7 +667,7 @@ namespace TabFindBooksRange
 
     void EnqueueRefreshList()
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -691,7 +685,7 @@ namespace TabFindBooksRange
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -809,7 +803,7 @@ namespace TabAllBooks
 
     void EnqueueRefreshList()
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -827,7 +821,7 @@ namespace TabAllBooks
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -935,7 +929,7 @@ namespace TabDetailsBooks
 
     void EnqueueRefresh()
     {
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -965,7 +959,7 @@ namespace TabDetailsBooks
         if (currentBook.isbn.empty())
             return 0;
 
-        MessageSetWait(&label);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
         WorkerThread::EnqueueWork(DoRefresh);
