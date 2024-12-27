@@ -387,18 +387,28 @@ void DoRemove(HospitalPatient &&patient, HWND window)
     deleteHistoryTree.insert(std::move(patient));
 }
 
-void DoRemoveByListViewSelection(PatientListView *list)
+void DoRemoveByListViewSelection(PatientListView *list, UI::ProgressBar *progress, UI::LabelWorkMessage *message)
 {
+    progress->SetWaiting(true);
+    message->ReplaceLastMessage(L"Menghapus data");
+
     std::vector<HospitalPatient> selected;
     for (int v : list->GetSelectedIndex())
         selected.push_back(*list->items[v]);
 
     ClearAllList();
 
+    Timer t;
+    t.start();
     for (HospitalPatient &patient : selected)
     {
         DoRemove(std::move(patient), list->_window->hwnd);
     }
+    t.end();
+
+    message->ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr() + L". Penghapusan mungkin terlihat lama karena proses mendapatkan pilihan dari UI");
+    progress->SetWaiting(false);
+    UIUtils::MessageSetWait(message, false);
 }
 
 void CopyIDByListViewSelection(PatientListView *list)
@@ -595,6 +605,21 @@ namespace TabLongestDuration
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
+    void DoDelete()
+    {
+        DoRemoveByListViewSelection(&listView, &progress, &message);
+    }
+
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoDelete);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+        return 0;
+    }
+
     LRESULT OnShowClick(UI::CallbackParam param)
     {
         EnqueueRefresh();
@@ -619,6 +644,7 @@ namespace TabLongestDuration
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus");
+        btnDelete.commandListener = OnDeleteClick;
 
         labelCount.SetText(L"Jumlah");
 
@@ -699,6 +725,21 @@ namespace TabFindRange
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
+    void DoDelete()
+    {
+        DoRemoveByListViewSelection(&listView, &progress, &message);
+    }
+
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoDelete);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+        return 0;
+    }
+
     LRESULT OnFindClick(UI::CallbackParam param)
     {
         EnqueueRefresh();
@@ -725,6 +766,7 @@ namespace TabFindRange
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus");
+        btnDelete.commandListener = OnDeleteClick;
 
         window.controlsLayout = {{UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &labelFrom),
                                   UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &textBoxFrom),
@@ -808,6 +850,21 @@ namespace TabAllPatient
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
+    void DoDelete()
+    {
+        DoRemoveByListViewSelection(&listView, &progress, &message);
+    }
+
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoDelete);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+        return 0;
+    }
+
     LRESULT OnShowClick(UI::CallbackParam param)
     {
         EnqueueRefresh();
@@ -832,6 +889,7 @@ namespace TabAllPatient
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus");
+        btnDelete.commandListener = OnDeleteClick;
 
         window.controlsLayout = {{UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &comboType),
                                   UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnShow)},
@@ -907,11 +965,11 @@ namespace MainWindow
         TabFindRange::Init();
         tabs.AddPage(L"Cari Berdasarkan Rentang Nama", &TabFindRange::window);
 
-        TabDetail::Init();
-        tabs.AddPage(L"Detail Pasien", &TabDetail::window);
-
         TabLongestDuration::Init();
         tabs.AddPage(L"Durasi Terlama", &TabLongestDuration::window);
+
+        TabDetail::Init();
+        tabs.AddPage(L"Detail Pasien", &TabDetail::window);
 
         TabHistoryDelete::Init();
         tabs.AddPage(L"Riwayat Hapus", &TabHistoryDelete::window);
