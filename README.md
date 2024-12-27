@@ -44,7 +44,17 @@ Berikut adalah penjelasan dari file-file pendukung dari proyek kami.
 - `Utils.hpp`, berisi fungsi utilitas kecil
 - `TImer.hpp`, berisi utilitas untuk menghitung durasi dari sautu proses
 
+Data stuktur Red Black Tree, Heap, Top K Largest, Roin Hood Hashmap dan SPSC Queue dibuat dengan menggunakan C++ template (mirip Generic di bahasa lain) sehingga penggunaanya fleksibel dan medukung berbagai tipe data. Struktur Data Stack secara internal digunakan di Red Black Tree dalam proses penghancuran tree.
+
 ## Penjelasan Tugas
+
+Tugas kami dibuat dengan menggunakan Window API. Jadi program kami hanya bisa dijalankan di Windows. Program kami telah kami uji di Windows 11. Untuk mencompile tugas kami diperlukan compiler dengan dukungan C++ 11. 
+
+Perintah untuk compile:
+
+```sh
+g++ -Wall --std=c++11 -o File.exe File.cpp
+```
 
 Di semua tugas terdapat fitur history delete dan mempunyai kemampuan restore. Tugas Buku, Rumah Sakit, dan Toko telah menggunakan data dari CSV.
 

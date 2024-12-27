@@ -9,6 +9,8 @@ struct TopKLargest {
     TopKLargest(size_t k) : k(k) {}
 
     void add(const T& value) {
+        if (k == 0) return;
+
         if (heap.count < k) {
             T copied = value;
             heap.add(std::move(copied));
