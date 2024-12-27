@@ -46,6 +46,8 @@ Berikut adalah penjelasan dari file-file pendukung dari proyek kami.
 
 ## Penjelasan Tugas
 
+Di semua tugas terdapat fitur history delete dan mempunyai kemampuan restore. Tugas Buku, Rumah Sakit, dan Toko telah menggunakan data dari CSV.
+
 ## Buku
 
 Ada di `Perpustakaan.cpp`.
@@ -80,7 +82,7 @@ Hash digunakan untuk menyimpan produl dengan SKU sebagai kunci dan data produk s
 
 Terdapat fitur pencarian rentang berdasarkan nama produk. Aturannya urutan sama seperti di tugas Buku.
 
-Untuk mencari produk dengan nama awal "susu" bisa digunakan trik dengan cara pencarian rentang dengan nama awalnya adalah "susu" dan nama akhirnya adalah "susv". Bisa juga dengan cara nama awalnya "susu" dan nama akhirnya adalah "susuz". Ini lebih manusiawai daripada cara pertama.
+Untuk mencari produk dengan nama awal "susu" bisa digunakan trik dengan cara pencarian rentang dengan nama awalnya adalah "susu" dan nama akhirnya adalah "susv". Bisa juga dengan cara nama awalnya "susu" dan nama akhirnya adalah "susuz". Ini lebih manusiawai daripada cara pertama. Cara ini harus dilakukan manual.
 
 Terdapat fitur yang memberikan daftar produk dengan harga termurah. Ini menggunakan algoritma Top K Largest.
 
