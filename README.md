@@ -48,7 +48,7 @@ Data stuktur Red Black Tree, Heap, Top K Largest, Roin Hood Hashmap dan SPSC Que
 
 ## Penjelasan Tugas
 
-Tugas kami dibuat dengan menggunakan Window API. Jadi program kami hanya bisa dijalankan di Windows. Program kami telah kami uji di Windows 11. Untuk mencompile tugas kami diperlukan compiler dengan dukungan C++ 11. 
+Tugas kami dibuat dengan menggunakan Window API. Jadi program kami hanya bisa dijalankan di Windows. Program kami telah kami uji di Windows 11. Untuk mencompile tugas kami diperlukan compiler yang mendukung C++ 11. 
 
 Perintah untuk compile:
 
