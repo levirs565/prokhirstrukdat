@@ -4,6 +4,8 @@
 #include "HalfSipHash.h"
 #include "RBTree.hpp"
 #include "RobinHoodHashMap.hpp"
+#include <sstream>
+#include <iomanip>
 
 enum class PatientGroup
 {
@@ -31,11 +33,21 @@ struct HospitalPatient
 {
     std::wstring name, id;
     PatientGroup group;
-    int durationDay;
+    SYSTEMTIME start, end;
+
+    int GetDayPrice()
+    {
+        return GetPatientGroupPricePerDay(group);
+    }
+
+    int GetDurationDay()
+    {
+        return Utils::GetSystemDateDifferenceDays(end, start);
+    }
 
     int GetTotalPrice()
     {
-        return durationDay * GetPatientGroupPricePerDay(group);
+        return GetDurationDay() * GetDayPrice();
     }
 };
 
@@ -64,75 +76,126 @@ struct HospitalPatientIDHasher
     }
 };
 
+std::wstring lastId = L"000000000";
 RBTree<HospitalPatient, HospitalPatientNameComparer> tree;
 RobinHoodHashMap<std::wstring, HospitalPatient, HospitalPatientIDHasher> hashTable;
+
+std::wstring GenNextId()
+{
+    int lastIdInt = std::stoi(lastId);
+    lastIdInt++;
+    std::wstringstream stream;
+    stream << std::setw(9) << std::setfill(L'0') << std::right << lastIdInt;
+    return stream.str();
+}
 
 namespace AddWindow
 {
     UI::Window window;
-    UI::Label idLabel, nameLabel, groupLabel, durationLabel, durationSuffixLabel;
-    UI::TextBox idTextBox, nameTextBox;
+    UI::Label idLabel, nameLabel, groupLabel, durationLabel, dateLabel, startLabel, endLabel, priceDayLabel, priceTotal;
+    UI::TextBox nameTextBox;
     UI::ComboBox groupComboBox;
-    UI::SpinBox durationSpinBox;
     UI::DateTimePicker dtpStart, dtpEnd;
     UI::Button addButton;
+    HospitalPatient patient;
 
     LRESULT OnAddClick(UI::CallbackParam param)
     {
-        // HospitalPatient patient = {
-        //     nameTextBox.getText(),
-        //     idTextBox.getText(),
-        //     (PatientGroup)groupComboBox.GetSelectedIndex(),
-        //     durationSpinBox.GetValue()};
+        patient.name = nameTextBox.getText();
 
-        // hashTable.put(patient.id, patient);
-        // tree.insert(std::move(patient));
+        try {
+            if (patient.name.empty()) throw std::domain_error("Nama tidak boleh kosong");
+            if (patient.GetDurationDay() <= 0) throw std::domain_error("Tanggal sampai harus lebih dari tanggal dari");
+        } catch (std::domain_error const& e) {
+            MessageBoxA(window.hwnd, e.what(), "Gagal", MB_OK);
+            return 0;
+        }
+        hashTable.put(patient.id, patient);
+        tree.insert(std::move(patient));
 
-        // window.CloseModal();
+        window.CloseModal();
+        return 0;
+    }
 
-        std::wcout << Utils::SystemTimeToDateStr(dtpStart.GetValue()) << L"  " << Utils::SystemTimeToDateStr(dtpEnd.GetValue()) << std::endl;
-        std::wcout << Utils::GetSystemDateDifferenceDays(dtpStart.GetValue(), dtpEnd.GetValue()) << std::endl;
+    void UpdateLabel()
+    {
+        patient.start = dtpStart.GetValue();
+        patient.end = dtpEnd.GetValue();
+        patient.group = (PatientGroup)groupComboBox.GetSelectedIndex();
 
+        durationLabel.SetText(L"Durasi: " + std::to_wstring(patient.GetDurationDay()) + L" hari");
+        priceDayLabel.SetText(L"Biaya Per Hari: " + std::to_wstring(patient.GetDayPrice()));
+        priceTotal.SetText(L"Biaya Total: " + std::to_wstring(patient.GetTotalPrice()));
+    }
+
+    LRESULT OnStartEndChanged(UI::CallbackParam param)
+    {
+        UpdateLabel();
+        return 0;
+    }
+
+    LRESULT OnComboChanged(UI::CallbackParam param)
+    {
+        UpdateLabel();
         return 0;
     }
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
+        patient.id = GenNextId();
+
         window.InitModal();
-        idLabel.SetText(L"ID");
+        idLabel.SetText(L"ID: " + patient.id);
         nameLabel.SetText(L"Nama");
         groupLabel.SetText(L"Golongan");
-        durationLabel.SetText(L"Lama Rawat Inap");
-        durationSuffixLabel.SetText(L"hari");
+        durationLabel.SetText(L"Durasi: 0 hari");
         addButton.SetText(L"Tambah");
+        dateLabel.SetText(L"Tanggal Rawat Inap");
+        startLabel.SetText(L"Dari");
+        endLabel.SetText(L"Sampai");
+        priceDayLabel.SetText(L"Biaya Per Hari: ");
+        priceTotal.SetText(L"Biaya Total: ");
 
         addButton.commandListener = OnAddClick;
 
         window.controlsLayout = {{UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &idLabel)},
-                                 {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &idTextBox)},
                                  {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &nameLabel)},
                                  {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &nameTextBox)},
                                  {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &groupLabel)},
                                  {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &groupComboBox)},
-                                 {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &durationLabel)},
-                                 {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &durationSpinBox),
-                                  UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &durationSuffixLabel)},
-                                 {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &dtpStart)},
-                                 {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &dtpEnd)},
+                                 {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &priceDayLabel)},
+                                 {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &dateLabel)},
+                                 {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &startLabel),
+                                  UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &dtpStart),
+                                  UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &endLabel),
+                                  UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &dtpEnd),
+                                  UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &durationLabel)},
+                                 {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &priceTotal)},
                                  {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &addButton)}};
         UI::LayoutControls(&window, true);
 
-        // idTextBox.SetEnable(false);
+        window.registerNotifyListener(dtpStart._controlId, DTN_DATETIMECHANGE, OnStartEndChanged);
+        window.registerNotifyListener(dtpEnd._controlId, DTN_DATETIMECHANGE, OnStartEndChanged);
 
         groupComboBox.AddItem(L"A");
         groupComboBox.AddItem(L"B");
         groupComboBox.AddItem(L"C");
         groupComboBox.AddItem(L"D");
         groupComboBox.AddItem(L"E");
+        window.registerCommandListener(groupComboBox._controlId, OnComboChanged);
+        groupComboBox.SetSelectedIndex(0);
 
-        durationSpinBox.SetRange(0, 1000);
+        SYSTEMTIME time;
+        GetSystemTime(&time);
+        time.wHour = 0;
+        time.wMinute = 0;
+        time.wSecond = 0;
+        time.wMilliseconds = 0;
 
-        dtpStart.SetValue(Utils::DateStrToSystemTime(L"24/12/2024"));
+        dtpStart.SetValue(time);
+        dtpEnd.SetValue(time);
+
+        UpdateLabel();
 
         return 0;
     }
@@ -164,6 +227,8 @@ struct PatientListView : UI::VListView
         InsertColumn(L"Nama", 100);
         InsertColumn(L"Golongan", 100);
         InsertColumn(L"Biaya Per Hari", 100);
+        InsertColumn(L"Dari", 100);
+        InsertColumn(L"Sampai", 100);
         InsertColumn(L"Lama Rawat Inap", 150);
         InsertColumn(L"Biaya Total", 200);
     }
@@ -178,10 +243,14 @@ struct PatientListView : UI::VListView
         if (column == 2)
             return GetPatientGroupName(patient->group);
         if (column == 3)
-            return std::to_wstring(GetPatientGroupPricePerDay(patient->group));
+            return std::to_wstring(patient->GetDayPrice());
         if (column == 4)
-            return std::to_wstring(patient->durationDay) + L" hari";
+            return Utils::SystemTimeToDateStr(patient->start);
         if (column == 5)
+            return Utils::SystemTimeToDateStr(patient->end);
+        if (column == 6)
+            return std::to_wstring(patient->GetDurationDay()) + L" hari";
+        if (column == 7)
             return std::to_wstring(patient->GetTotalPrice());
         return L"";
     }

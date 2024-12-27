@@ -130,7 +130,7 @@ namespace Utils
 
         LONGLONG diff = static_cast<LONGLONG>(ua.QuadPart) - static_cast<LONGLONG>(ub.QuadPart);
         diff *= 100;
-        return std::chrono::nanoseconds(std::abs(diff));
+        return std::chrono::nanoseconds(diff);
     }
 
     int GetSystemDateDifferenceDays(const SYSTEMTIME& a, const SYSTEMTIME& b) {

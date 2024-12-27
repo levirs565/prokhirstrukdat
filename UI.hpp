@@ -418,6 +418,11 @@ namespace UI
             _cmdListeners.emplace(cmd, callback);
         }
 
+        void registerNotifyListener(UINT_PTR cmd, UINT code, CallbackType callback)
+        {
+            _notifyListeners.emplace(std::make_pair(cmd, code), callback);
+        }
+
         /**
          * Menreset isi dari windows
          * Note: Jangan memenggail fungsi ini
@@ -716,19 +721,22 @@ namespace UI
 
         SIZE GetDefaultSize() override
         {
-            return {220, 23};
+            return {110, 23};
         }
 
-        void SetValue(SYSTEMTIME value) {
+        void SetValue(SYSTEMTIME value)
+        {
             DateTime_SetSystemtime(hwnd, GDT_VALID, &value);
         }
 
-        void SetRange(SYSTEMTIME from, SYSTEMTIME to) {
+        void SetRange(SYSTEMTIME from, SYSTEMTIME to)
+        {
             SYSTEMTIME array[2] = {from, to};
             DateTime_SetRange(hwnd, GDTR_MIN | GDTR_MAX, array);
         }
 
-        SYSTEMTIME GetValue() {
+        SYSTEMTIME GetValue()
+        {
             SYSTEMTIME res;
             DateTime_GetSystemtime(hwnd, &res);
             return res;
