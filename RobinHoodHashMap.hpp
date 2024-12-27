@@ -82,6 +82,10 @@ struct RobinHoodHashMap
         resize(minBucketSize);
     }
 
+    ~RobinHoodHashMap() {
+        delete[] buckets;
+    }
+
     /**
      * Mendapatkan value berdasarkan kunci
      * Proses Algoritma:
@@ -156,16 +160,13 @@ struct RobinHoodHashMap
      * 11. Isi bucket ke-i dengan bucket baru. 
      *     Pada langkap ini. Sudah bisa dipastikan bahwa bucket ke-i dalam kondisi kosong
      */
-    void internalInsert(const K &key, const V &value)
+    void internalInsert(const uint64_t hash, K && key, V && value)
     {
-        const uint64_t hash = hasher.hash(key);
-        // std::cout << hash << std::endl;
-
         BucketType current;
-        current.key = key;
+        current.key = std::move(key);
         current.filled = true;
         current.hash = hash;
-        current.value = value;
+        current.value = std::move(value);
         current.psl = 0;
 
         size_t i = hash % bucketSize;
@@ -176,9 +177,9 @@ struct RobinHoodHashMap
             if (!bucket->filled)
                 break;
 
-            if (bucket->hash == hash && bucket->key == key)
+            if (bucket->hash == hash && bucket->key == current.key)
             {
-                bucket->value = value;
+                bucket->value = std::move(current.value);
                 return;
             }
 
@@ -202,7 +203,7 @@ struct RobinHoodHashMap
 
     void resize(size_t newSize)
     {
-        std::cout << "Resize " << bucketSize << " " << newSize << std::endl;
+        std::cout << "RobinHoodHashMap Resize " << bucketSize << " " << newSize << std::endl;
         BucketType *oldBuckets = buckets;
         size_t oldSize = bucketSize;
 
@@ -217,7 +218,7 @@ struct RobinHoodHashMap
             if (!bucket->filled)
                 continue;
 
-            internalInsert(bucket->key, bucket->value);
+            internalInsert(bucket->hash, std::move(bucket->key), std::move(bucket->value));
         }
 
         if (oldBuckets && oldSize > 0)
@@ -235,7 +236,9 @@ struct RobinHoodHashMap
             resize(bucketSize * 2);
         }
 
-        internalInsert(key, value);
+        K keyC = key;
+        V valueC = value;
+        internalInsert(hasher.hash(key), std::move(keyC), std::move(valueC));
     }
 
     /**

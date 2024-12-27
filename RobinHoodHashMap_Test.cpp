@@ -24,7 +24,7 @@ int main()
             char *res = hash.get(i);
             if (res != nullptr)
             {
-                if (mustNot) {
+                if (mustNot || *res != char(' ' + i)) {
                     throw std::domain_error("Must not");
                 }
                 std::cout << i << "=" << *res << " ";
@@ -41,7 +41,7 @@ int main()
         std::cout << "Add " << i << " > ";
         test();
     }
-
+    
     for (int i = 94; i >= 0; i--) {
         if (!hash.remove(i)) {
             std::cout << "ANeh" << std::endl;
