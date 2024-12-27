@@ -340,6 +340,45 @@ namespace TabHistoryDelete
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
+    void DoRestore()
+    {
+        message.ReplaceLastMessage(L"Merestore data");
+        progress.SetWaiting(true);
+
+        std::vector<HospitalPatient> list;
+        for (int v : listView.GetSelectedIndex())
+        {
+            list.push_back(*listView.items[v]);
+        }
+
+        listView.SetRowCount(0);
+
+        Timer t;
+        t.start();
+        for (HospitalPatient &patient : list)
+        {
+            deleteHistoryTree.remove(patient);
+
+            hashTable.put(patient.id, patient);
+            tree.insert(std::move(patient));
+        }
+        t.end();
+
+        progress.SetWaiting(false);
+        message.ReplaceLastMessage(L"Restore berhasil dalam " + t.durationStr());
+        UIUtils::MessageSetWait(&message, false);
+    }
+
+    LRESULT OnRestoreClick(UI::CallbackParam param)
+    {
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRestore);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+        return 0;
+    }
+
     LRESULT OnShowClick(UI::CallbackParam param)
     {
         EnqueueRefresh();
@@ -352,6 +391,7 @@ namespace TabHistoryDelete
         btnShow.commandListener = OnShowClick;
 
         btnRestore.SetText(L"Restore");
+        btnRestore.commandListener = OnRestoreClick;
 
         window.controlsLayout = {{UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &comboType),
                                   UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnShow)},
@@ -498,6 +538,33 @@ namespace TabDetail
         WorkerThread::EnqueueWork(DoRefresh);
     }
 
+    void DoDelete()
+    {
+        progress.SetWaiting(true);
+        message.ReplaceLastMessage(L"Menghapus data");
+
+        Timer t;
+        t.start();
+        DoRemove(std::move(patient), window.hwnd);
+        t.end();
+
+        message.ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr());
+        progress.SetWaiting(false);
+    }
+
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        if (patient.id.empty())
+            return 0;
+
+        UIUtils::MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoDelete);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+        return 0;
+    }
+
     LRESULT OnFindClick(UI::CallbackParam param)
     {
         EnqueueRefresh();
@@ -512,6 +579,7 @@ namespace TabDetail
         btnAdd.SetText(L"Tambah Pasien");
         btnAdd.commandListener = OnAddClick;
         btnDelete.SetText(L"Hapus");
+        btnDelete.commandListener = OnDeleteClick;
 
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
