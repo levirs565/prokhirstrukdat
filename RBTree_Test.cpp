@@ -8,7 +8,7 @@ bool IntCompare(const int &a, const int &b)
 int main()
 {
 
-    RBTree<int, decltype(&IntCompare)> tree(IntCompare);
+    RBTree<int, decltype(&IntCompare)> tree(&IntCompare);
     for (int y = 1; y <= 128; y++)
     {
         int z = y;
