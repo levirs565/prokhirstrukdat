@@ -6,7 +6,6 @@
 #include "Utils.hpp"
 #include "RobinHoodHashMap.hpp"
 #include "HalfSipHash.h"
-#include "MurmurHash3.h"
 #include "unordered_map"
 #include "WorkerThread.hpp"
 #include "TopKLargest.hpp"
@@ -22,11 +21,11 @@ struct Student
     std::wstring password;
 };
 
-struct StudentNameComparer
+struct StudentEntryComparer
 {
     int compare(const Student &a, const Student &b)
     {
-        int compare = Utils::CompareWStringHalfInsensitive(a.name, b.name);
+        int compare = Utils::CompareWStringHalfInsensitive(a.entry, b.entry);
 
         if (compare != 0)
             return compare;
@@ -35,19 +34,7 @@ struct StudentNameComparer
     }
 };
 
-// struct StudentEntryCompareReversed
-// {
-//     int compare(Student *a, Student *b)
-//     {
-//         int compare = a->entry - b->entry;
-//         if (compare != 0)
-//             return -compare;
-
-//         return -Utils::CompareWStringHalfInsensitive(a->nisn, b->nisn);
-//     }
-// };
-
-struct StudentNameHasher
+struct StudentNISNHasher
 {
     uint64_t seed = 0xe17a1465;
     uint64_t hash(const std::wstring &wstr)
@@ -56,9 +43,9 @@ struct StudentNameHasher
     }
 };
 
-RBTree<Student, StudentNameComparer> tree;
-RobinHoodHashMap<std::wstring, Student, StudentNameHasher> hashTable;
-RBTree<Student, StudentNameComparer> removeHistoryTree;
+RBTree<Student, StudentEntryComparer> tree;
+RobinHoodHashMap<std::wstring, Student, StudentNISNHasher> hashTable;
+RBTree<Student, StudentEntryComparer> removeHistoryTree;
 
 void ClearAllList();
 // Jangan merefresh caller window
@@ -245,20 +232,20 @@ struct StudentListView : UI::VListView
         InsertColumn(L"Password", 100);
     }
 
-    const std::wstring *OnGetItem(int row, int column) override
+    const std::wstring OnGetItem(int row, int column) override
     {
         Student *student = items[row];
         if (column == 0)
-            return &student->nisn;
+            return student->nisn;
         else if (column == 1)
-            return &student->name;
+            return student->name;
         else if (column == 2)
-            return &student->origin;
+            return student->origin;
         else if (column == 3)
-            return &student->entry;
+            return student->entry;
         else if (column == 4)
-            return &student->password;
-        return nullptr;
+            return student->password;
+        return L"";
     }
 };
 
@@ -407,7 +394,7 @@ namespace TabHistoryDelete
 
 LRESULT OnAddClick(UI::CallbackParam param)
 {
-    Register::Show();
+    AddData::Show();
     return 0;
 }
 
@@ -469,64 +456,138 @@ void CopynisnByListViewSelection(UI::ListView *listView)
     }
 }
 
-namespace TabOldStudents
+namespace TabStudentAuth
 {
-    UI::Label label;
     UI::Window window;
-    UI::SpinBox spinBox;
-    UI::Button findButton;
-    UI::ProgressBar progress;
-    UI::LabelWorkMessage message;
-    UI::CheckBox ignoreInvalidYearCheck;
-    UI::Button btnAdd, btnDelete, btnCopyNISN;
-    StudentListView listView;
+    UI::Label nisnLabel, passwordLabel;
+    UI::TextBox nisnTextBox, passwordTextBox;
+    UI::LabelWorkMessage label;
+    UI::Button btnAuth;
 
     void SetEnable(boolean enable)
     {
-        spinBox.SetEnable(enable);
-        findButton.SetEnable(enable);
-        ignoreInvalidYearCheck.SetEnable(enable);
-        btnAdd.SetEnable(enable);
-        btnDelete.SetEnable(enable);
-        btnCopyNISN.SetEnable(enable);
-        listView.SetEnable(enable);
+        nisnTextBox.SetEnable(enable);
+        passwordTextBox.SetEnable(enable);
+        btnAuth.SetEnable(enable);
     }
 
     void DoRefresh()
     {
-        message.ReplaceLastMessage(L"Memproses data");
-        listView.SetRowCount(0);
-        progress.SetWaiting(true);
-
-        // int count = spinBox.GetValue();
-        // bool ignoreInvalid = ignoreInvalidYearCheck.GetCheck() == BST_CHECKED;
-
+        label.ReplaceLastMessage(L"Menemukan data");
+        std::wstring nisn = nisnTextBox.getText(), password = passwordTextBox.getText();
         Timer timer;
+
         timer.start();
-        // TopKLargest<Student *, StudentYearCompareReversed> topK(count);
-        // tree.preorder(tree.root, [&](RBNode<Student> *node)
-        //               {
-        //     if (node->value.year == 0 && ignoreInvalid) return;
-        //     topK.add(&node->value); });
-
-        // int listSize = topK.getCount();
-        // listView.items.resize(listSize);
-
-        // for (int i = listSize - 1; i >= 0; i--)
-        // {
-        //     listView.items[i] = topK.removeTop();
-        // }
+        Student *res = hashTable.get(nisn);
         timer.end();
 
-        // listView.SetRowCount(listSize);
-        progress.SetWaiting(false);
-        message.ReplaceLastMessage(L"Data ditemukan dalam " + timer.durationStr());
+        if (res == nullptr)
+            label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr() + L". Data tidak ada");
+        else if (res->password != password)
+            label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr() + L". Password salah");
+        else
+            label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr() + L". Password benar");
+
         SetEnable(true);
     }
 
     void EnqueueRefreshList()
     {
-        UIUtils::MessageSetWait(&message);
+        UIUtils::MessageSetWait(&label);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
+    }
+
+    LRESULT OnAuthClick(UI::CallbackParam param)
+    {
+        EnqueueRefreshList();
+        return 0;
+    }
+
+    LRESULT OnCreate(UI::CallbackParam param)
+    {
+        nisnLabel.SetText(L"NISN");
+        passwordLabel.SetText(L"Password");
+
+        btnAuth.SetText(L"Cari");
+        btnAuth.commandListener = OnAuthClick;
+
+        window.controlsLayout = {
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &nisnLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &nisnTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &passwordLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &passwordTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnAuth)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)}};
+
+        UI::LayoutControls(&window, true);
+
+        return 0;
+    }
+
+    void Init()
+    {
+        window.title = L"TabStudentAuth";
+        window.registerMessageListener(WM_CREATE, OnCreate);
+    }
+}
+
+namespace TabFindStudentsRange
+{
+    UI::Window window;
+    UI::Label entryLabel, nisnLabel;
+    UI::TextBox entryTextBox, nisnTextBox;
+    UI::Button btnFind;
+    UI::Button btnAdd, btnDelete, btnCopynisn;
+    UI::ProgressBar progress;
+    UI::LabelWorkMessage label;
+    StudentListView listView;
+
+    void SetEnable(boolean enable)
+    {
+        entryTextBox.SetEnable(enable);
+        nisnTextBox.SetEnable(enable);
+        btnFind.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+        btnCopynisn.SetEnable(enable);
+        listView.SetEnable(enable);
+    }
+
+    void DoRefresh()
+    {
+        listView.items.clear();
+        listView.SetRowCount(0);
+
+        label.ReplaceLastMessage(L"Menemukan data");
+        std::wstring entry = entryTextBox.getText(), nisn = nisnTextBox.getText();
+        Timer timer;
+
+        std::wstring nisnEnd = nisn;
+        while (nisnEnd.size() <= 10)
+            nisnEnd.push_back('9');
+
+        progress.SetWaiting(true);
+
+        {
+            timer.start();
+            tree.findBetween(Student{nisn, L"", L"", entry}, {nisnEnd, L"", L"", entry}, [&](RBNode<Student> *node)
+                             { listView.items.push_back(&node->value); });
+            timer.end();
+        }
+
+        progress.SetWaiting(false);
+        listView.SetRowCount(listView.items.size());
+
+        label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr());
+        progress.SetWaiting(false);
+
+        SetEnable(true);
+    }
+
+    void EnqueueRefreshList()
+    {
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoRefresh);
     }
@@ -539,12 +600,12 @@ namespace TabOldStudents
 
     void DoDelete()
     {
-        DoRemoveByListViewSelection(&listView, &progress, &message);
+        DoRemoveByListViewSelection(&listView, &progress, &label);
     }
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        UIUtils::MessageSetWait(&message);
+        UIUtils::MessageSetWait(&label);
         SetEnable(false);
         WorkerThread::EnqueueWork(DoDelete);
         WorkerThread::EnqueueWork(DoRefresh);
@@ -560,176 +621,46 @@ namespace TabOldStudents
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
-        label.SetText(L"Jumlah: ");
+        entryLabel.SetText(L"Jalur Masuk");
+        nisnLabel.SetText(L"NISN Awal");
 
-        findButton.SetText(L"Temukan");
-        findButton.commandListener = OnFindClick;
+        btnFind.SetText(L"Cari");
+        btnFind.commandListener = OnFindClick;
 
-        // ignoreInvalidYearCheck.SetText(L"Abaikan Buku dengan Tahun Tidak Valid");
+        btnCopynisn.SetText(L"Salin nisn");
+        btnCopynisn.commandListener = OnCopynisnClick;
 
-        btnCopyNISN.SetText(L"Salin NISN");
-        btnCopyNISN.commandListener = OnCopynisnClick;
-
-        btnAdd.SetText(L"Tambahkan Data");
+        btnAdd.SetText(L"Tambahkan Siswa");
         btnAdd.commandListener = OnAddClick;
 
-        btnDelete.SetText(L"Hapus Data");
+        btnDelete.SetText(L"Hapus Siswa");
         btnDelete.commandListener = OnDeleteClick;
 
         window.controlsLayout = {
-            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &label),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &spinBox),
-             UI::ControlCell(250, UI::SIZE_DEFAULT, &ignoreInvalidYearCheck),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &findButton)},
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &entryLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &entryTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &nisnLabel),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &nisnTextBox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnFind)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &message)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
             {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
-             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyNISN),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopynisn),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
 
         UI::LayoutControls(&window, true);
 
-        ignoreInvalidYearCheck.SetCheck(BST_CHECKED);
-        spinBox.SetRange(0, 1000);
-        spinBox.SetValue(100);
-
         return 0;
-    };
+    }
 
     void Init()
     {
-        window.title = L"TabOldStudents";
+        window.title = L"TabFindStudentsRange";
         window.registerMessageListener(WM_CREATE, OnCreate);
     }
-};
-
-// namespace TabFindStudentsRange
-// {
-//     UI::Window window;
-//     UI::Label fromLabel, toLabel;
-//     UI::TextBox fromTextBox, toTextBox;
-//     UI::Button btnFind;
-//     UI::Button btnAdd, btnDelete, btnCopynisn;
-//     UI::ProgressBar progress;
-//     UI::LabelWorkMessage label;
-//     StudentListView listView;
-
-//     void SetEnable(boolean enable)
-//     {
-//         fromTextBox.SetEnable(enable);
-//         toTextBox.SetEnable(enable);
-//         btnFind.SetEnable(enable);
-//         btnAdd.SetEnable(enable);
-//         btnDelete.SetEnable(enable);
-//         btnCopynisn.SetEnable(enable);
-//         listView.SetEnable(enable);
-//     }
-
-//     void DoRefresh()
-//     {
-//         listView.items.clear();
-//         listView.SetRowCount(0);
-
-//         label.ReplaceLastMessage(L"Menemukan data");
-//         std::wstring from = fromTextBox.getText(), to = toTextBox.getText();
-//         Timer timer;
-
-//         progress.SetWaiting(true);
-
-//         {
-//             timer.start();
-//             tree.findBetween(Student{L".", from}, {L":", to}, [&](RBNode<Student> *node)
-//                              { listView.items.push_back(&node->value); });
-//             timer.end();
-//         }
-
-//         progress.SetWaiting(false);
-//         listView.SetRowCount(listView.items.size());
-
-//         label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr());
-//         progress.SetWaiting(false);
-
-//         SetEnable(true);
-//     }
-
-//     void EnqueueRefreshList()
-//     {
-//         UIUtils::MessageSetWait(&label);
-//         SetEnable(false);
-//         WorkerThread::EnqueueWork(DoRefresh);
-//     }
-
-//     LRESULT OnFindClick(UI::CallbackParam param)
-//     {
-//         EnqueueRefreshList();
-//         return 0;
-//     }
-
-//     void DoDelete()
-//     {
-//         DoRemoveByListViewSelection(&listView, &progress, &label);
-//     }
-
-//     LRESULT OnDeleteClick(UI::CallbackParam param)
-//     {
-//         UIUtils::MessageSetWait(&label);
-//         SetEnable(false);
-//         WorkerThread::EnqueueWork(DoDelete);
-//         WorkerThread::EnqueueWork(DoRefresh);
-//         EnqueueRefreshAll(&window);
-//         return 0;
-//     }
-
-//     LRESULT OnCopynisnClick(UI::CallbackParam param)
-//     {
-//         CopynisnByListViewSelection(&listView);
-//         return 0;
-//     }
-
-//     LRESULT OnCreate(UI::CallbackParam param)
-//     {
-//         fromLabel.SetText(L"Dari");
-//         toLabel.SetText(L"Ke");
-
-//         btnFind.SetText(L"Cari");
-//         btnFind.commandListener = OnFindClick;
-
-//         btnCopynisn.SetText(L"Salin nisn");
-//         btnCopynisn.commandListener = OnCopynisnClick;
-
-//         btnAdd.SetText(L"Tambahkan Buku");
-//         btnAdd.commandListener = OnAddClick;
-
-//         btnDelete.SetText(L"Hapus Buku");
-//         btnDelete.commandListener = OnDeleteClick;
-
-//         window.controlsLayout = {
-//             {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &fromLabel),
-//              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &fromTextBox),
-//              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &toLabel),
-//              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &toTextBox),
-//              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnFind)},
-//             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
-//             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
-//             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-//             {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
-//              UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopynisn),
-//              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
-//              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
-
-//         UI::LayoutControls(&window, true);
-
-//         return 0;
-//     }
-
-//     void Init()
-//     {
-//         window.title = L"TabFindStudentsRange";
-//         window.registerMessageListener(WM_CREATE, OnCreate);
-//     }
-// }
+}
 
 namespace TabAllStudents
 {
@@ -1024,7 +955,7 @@ namespace TabFindEntry
 
     void DoRefresh()
     {
-        label.ReplaceLastMessage(L"Mencari Siswa Berdasarkan Jalur Masuk");
+        label.ReplaceLastMessage(L"Mencari Siswa Berdasarkan NISN");
         Timer timer;
 
         {
@@ -1095,7 +1026,7 @@ namespace TabFindEntry
 
     LRESULT onCreate(UI::CallbackParam param)
     {
-        entrylabel.SetText(L"Cari Berdasarkan Jalur Masuk :");
+        entrylabel.SetText(L"Cari Berdasarkan NISN :");
 
         btnSearch.SetText(L"Cari");
         btnSearch.commandListener = OnFindClick;
@@ -1141,45 +1072,6 @@ namespace MainWindow
 {
     UI::Window window;
     UI::Tabs tabs;
-    UI::StatusBar statusBar;
-    UI::ProgressBar progressBar;
-
-    void DoLoad()
-    {
-
-        progressBar.SetWaiting(true);
-
-        Timer timer;
-        statusBar.SetText(1, L"Memuat data dari CSV");
-
-        {
-            timer.start();
-            // CSVReader<CSVReaderIOBuffSync> reader("data/students.csv", ';');
-            // reader.startRead();
-
-            // int nisnIndex = reader.findHeaderIndex("NISN");
-            // int nameIndex = reader.findHeaderIndex("Name");
-            // int originIndex = reader.findHeaderIndex("Origin");
-            // int entryIndex = reader.findHeaderIndex("Entry");
-            // int passwordIndex = reader.findHeaderIndex("Password");
-
-            // while (reader.readData())
-            // {
-            //     Student Student{
-            //         Utils::stringviewToWstring(reader.data[nisnIndex]),
-            //         Utils::stringviewToWstring(reader.data[nameIndex]),
-            //         Utils::stringviewToWstring(reader.data[originIndex]),
-            //         Utils::stringviewToWstring(reader.data[entryIndex]),
-            //         Utils::stringviewToWstring(reader.data[passwordIndex])};
-            //     hashTable.put(Student.nisn, Student);
-            //     tree.insert(std::move(Student));
-            // }
-            timer.end();
-        }
-        progressBar.SetWaiting(false);
-
-        statusBar.SetText(1, L"Data dimuat dari CSV dalam " + timer.durationStr());
-    }
 
     LRESULT OnClose(UI::CallbackParam param)
     {
@@ -1202,36 +1094,28 @@ namespace MainWindow
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
-        Register::window.parentHwnd = window.hwnd;
+        AddData::window.parentHwnd = window.hwnd;
 
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &tabs)}};
         window.layouter.paddingBottom = 20;
         UI::LayoutControls(&window, true);
 
-        statusBar.Create(&window);
-        statusBar.SetParts({118, 300});
-
-        progressBar.Create(&window, statusBar.hwnd, {9, 2}, {100, 19});
-
-        window.fixedControls = {&statusBar};
-
         TabAllStudents::Init();
-        tabs.AddPage(L"Semua Buku", &TabAllStudents::window);
+        tabs.AddPage(L"Semua Siswa", &TabAllStudents::window);
 
-        // TabFindStudentsRange::Init();
-        // tabs.AddPage(L"Temukan Buku dalam Rentang", &TabFindStudentsRange::window);
-
-        TabOldStudents::Init();
-        tabs.AddPage(L"Buku Tertua", &TabOldStudents::window);
+        TabFindStudentsRange::Init();
+        tabs.AddPage(L"Temukan Siswa Berdasarkan Jalur Masuk dan NSIN", &TabFindStudentsRange::window);
 
         TabFindNISN::Init();
-        tabs.AddPage(L"Details Buku", &TabFindNISN::window);
+        tabs.AddPage(L"Details Siswa", &TabFindNISN::window);
+
+        TabStudentAuth::Init();
+        tabs.AddPage(L"Coba Autentikasi", &TabStudentAuth::window);
 
         TabHistoryDelete::Init();
         tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
-        WorkerThread::EnqueueWork(DoLoad);
         EnqueueRefreshAll(&window);
 
         return 0;
@@ -1251,22 +1135,21 @@ namespace MainWindow
 void ClearAllList()
 {
     TabAllStudents::listView.SetRowCount(0);
-    // TabFindStudentsRange::listView.SetRowCount(0);
-    TabOldStudents::listView.SetRowCount(0);
+    TabFindStudentsRange::listView.SetRowCount(0);
 }
 
 void EnqueueRefreshAll(UI::Window *callerWindow)
 {
     if (callerWindow != &TabAllStudents::window)
         TabAllStudents::EnqueueRefreshList();
-    // if (callerWindow != &TabFindStudentsRange::window)
-    //     TabFindStudentsRange::EnqueueRefreshList();
-    if (callerWindow != &TabOldStudents::window)
-        TabOldStudents::EnqueueRefreshList();
+    if (callerWindow != &TabFindStudentsRange::window)
+        TabFindStudentsRange::EnqueueRefreshList();
     if (callerWindow != &TabFindNISN::window)
         TabFindNISN::EnqueueRefresh();
     if (callerWindow != &TabHistoryDelete::window)
         TabHistoryDelete::EnqueueRefreshList();
+    if (callerWindow != &TabStudentAuth::window)
+        TabStudentAuth::EnqueueRefreshList();
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)
