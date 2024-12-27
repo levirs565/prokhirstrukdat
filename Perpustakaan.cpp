@@ -1,14 +1,14 @@
 #include "UI.hpp"
 #include "CSVReader.hpp"
 #include "RBTree.hpp"
-#include <thread>
 #include "Timer.hpp"
-#include <sstream>
 #include "Utils.hpp"
 #include "RobinHoodHashMap.hpp"
 #include "HalfSipHash.h"
 #include "MurmurHash3.h"
 #include "unordered_map"
+#include "WorkerThread.hpp"
+#include "TopKLargest.hpp"
 #include <stdlib.h>
 
 struct Book
@@ -20,60 +20,54 @@ struct Book
     std::wstring year;
 };
 
-bool BookTitleCompare(const Book &a, const Book &b)
+struct BookTitleComparer
 {
-    int compare = Utils::CompareWStringHalfInsensitive(a.title, b.title);
-
-    if (compare == 0)
-        return a.isbn < b.isbn;
-
-    return compare == -1;
-}
-
-uint64_t seed = 0xe17a1465;
-
-std::hash<std::wstring> hasher;
-
-uint64_t fnv1a_hash(const uint8_t *data, size_t data_size)
-{
-    uint64_t hash = 0xcbf29ce484222325; // FNV offset basis
-
-    for (size_t i = 0; i < data_size; i++)
+    int compare(const Book &a, const Book &b)
     {
-        hash ^= data[i];
-        hash *= 0x100000001b3; // FNV prime
+        int compare = Utils::CompareWStringHalfInsensitive(a.title, b.title);
+
+        if (compare != 0)
+            return compare;
+
+        return Utils::CompareWStringHalfInsensitive(a.isbn, b.isbn);
     }
-    return hash;
-}
+};
 
-uint64_t BookHash(const std::wstring &wstr)
+struct BookYearCompareReversed
 {
-    // std::cout << wcstoull(wstr.c_str(), 0, 10) << std::endl;
-    return HalfSipHash_64(wstr.data(), sizeof(wchar_t) * wstr.size(), &seed);
-    // return wcstoull(wstr.c_str(), 0, 10);
-    // return hasher(wstr);
-    // return MurmurHash_fmix64(wcstoull(wstr.c_str(), 0, 10));
-    // return fnv1a_hash((const uint8_t*) wstr.data(), sizeof(wchar_t) * wstr.size());
-}
+    int compare(Book *a, Book *b)
+    {
+        int compare = Utils::CompareWStringHalfInsensitive(a->year, b->year);
+        if (compare != 0)
+            return -compare;
 
-// struct BookHasher {
-//     uint64_t operator()(const std::wstring& wstr) {
+        return -Utils::CompareWStringHalfInsensitive(a->isbn, b->isbn);
+    }
+};
 
-//     }
-// };
+struct BookTitleHasher
+{
+    uint64_t seed = 0xe17a1465;
 
-RBTree<Book, decltype(&BookTitleCompare)> tree(BookTitleCompare);
-RobinHoodHashMap<std::wstring, Book, decltype(&BookHash)> hashTable(BookHash);
-// std::unordered_map<std::wstring, Book> hashTable;
+    uint64_t hash(const std::wstring &wstr)
+    {
+        return HalfSipHash_64(wstr.data(), sizeof(wchar_t) * wstr.size(), &seed);
+    }
+};
 
-void RefreshAllList();
+RBTree<Book, BookTitleComparer> tree;
+RobinHoodHashMap<std::wstring, Book, BookTitleHasher> hashTable;
+RBTree<Book, BookTitleComparer> removeHistoryTree;
+
+void ClearAllList();
+// Jangan merefresh caller window
+void EnqueueRefreshAll(UI::Window *callerWindow);
 
 namespace AddWindow
 {
     UI::Window window;
     UI::Tabs tabs;
     UI::Label label;
-    UI::Label labelk;
     UI::Label isbn;
     UI::Label judul;
     UI::Label penulis;
@@ -85,10 +79,25 @@ namespace AddWindow
     UI::TextBox tahunTextBox;
     UI::TextBox penerbitTextBox;
     UI::Button btnAdd;
+    Book book;
+
+    void DoAdd()
+    {
+        Timer t;
+
+        t.start();
+        hashTable.put(book.isbn, book);
+        tree.insert(std::move(book));
+        t.end();
+
+        std::wstring message = L"Buku Telah berhasil Ditambahkan dalam Waktu " + t.durationStr();
+        MessageBoxW(window.hwnd, message.c_str(), L"Success", MB_OK);
+        window.CloseModal();
+    }
 
     LRESULT OnAddClick(UI::CallbackParam param)
     {
-        Book book{
+        book = Book{
             isbnTextBox.getText(),
             judulTextBox.getText(),
             penulisTextBox.getText(),
@@ -100,11 +109,10 @@ namespace AddWindow
 
         try
         {
-        if (book.isbn.size() == 0)
+            if (book.isbn.size() == 0)
             {
                 throw std::domain_error("ISBN Tidak Boleh Kosong");
             }
-
 
             if (book.isbn.size() != 10)
             {
@@ -123,7 +131,7 @@ namespace AddWindow
                     throw std::domain_error("ISBN harus berupa angka!");
                 }
             }
-            
+
             if ((Xcount == 1 && book.isbn[book.isbn.size() - 1] != L'X') || (Xcount > 1))
             {
                 throw std::domain_error("X hanya Bisa Di akhir ISBN");
@@ -146,7 +154,6 @@ namespace AddWindow
                 throw std::domain_error("Tahun Terbit Tidak Boleh Kosong");
             }
 
-            
             try
             {
                 size_t pos;
@@ -173,7 +180,6 @@ namespace AddWindow
             {
                 throw std::domain_error("Penerbit Tidak Boleh Kosong");
             }
-
         }
 
         catch (std::domain_error const &error)
@@ -182,39 +188,30 @@ namespace AddWindow
             return 0;
         }
 
-        hashTable.put(book.isbn, book);
-        tree.insert(std::move(book));
-
-        MessageBoxW(window.hwnd, L"Buku Telah berhasil Ditambahkan", L"Success", MB_OK);
-        window.Destroy();
-
-        RefreshAllList();
+        btnAdd.SetEnable(false);
+        WorkerThread::EnqueueWork(DoAdd);
+        EnqueueRefreshAll(&window);
 
         return 0;
     }
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
+        window.InitModal();
+
         label.SetText(L"Masukkan Data Buku!");
         isbn.SetText(L"ISBN :");
         judul.SetText(L"Judul Buku :");
         penulis.SetText(L"Penulis Buku :");
         tahun.SetText(L"Tahun Terbit :");
         penerbit.SetText(L"Penerbit :");
-        labelk.SetText(L" ");
-
-        isbnTextBox._dwStyle |= WS_BORDER;
-        judulTextBox._dwStyle |= WS_BORDER;
-        penulisTextBox._dwStyle |= WS_BORDER;
-        tahunTextBox._dwStyle |= WS_BORDER;
-        penerbitTextBox._dwStyle |= WS_BORDER;
 
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
 
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk)},
+            {UI::EmptyCell(UI::SIZE_FILL, 23)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &isbn)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &isbnTextBox)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &judul)},
@@ -225,7 +222,7 @@ namespace AddWindow
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &tahunTextBox)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbit)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &penerbitTextBox)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk)},
+            {UI::EmptyCell(UI::SIZE_FILL, 23)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &btnAdd)}};
 
         UI::LayoutControls(&window, true);
@@ -242,27 +239,389 @@ namespace AddWindow
     }
 }
 
+struct BookListView : UI::VListView
+{
+    std::vector<Book *> items;
+
+    void Create(UI::Window *window, HWND hParent, POINT pos, SIZE size) override
+    {
+        _dwStyle |= LVS_REPORT | WS_BORDER | LVS_SHOWSELALWAYS;
+        UI::VListView::Create(window, hParent, pos, size);
+
+        SetExtendedStyle(LVS_EX_FULLROWSELECT);
+        InsertColumn(L"ISBN", 100);
+        InsertColumn(L"Judul", 200);
+        InsertColumn(L"Penulis", 100);
+        InsertColumn(L"Penerbit", 100);
+        InsertColumn(L"Tahun", 100);
+    }
+
+    const std::wstring *OnGetItem(int row, int column) override
+    {
+        Book *book = items[row];
+        if (column == 0)
+            return &book->isbn;
+        else if (column == 1)
+            return &book->title;
+        else if (column == 2)
+            return &book->author;
+        else if (column == 3)
+            return &book->publisher;
+        else if (column == 4)
+            return &book->year;
+        return nullptr;
+    }
+};
+
+void MessageSetWait(UI::LabelWorkMessage *message, bool clear = true)
+{
+    if (clear)
+        message->Clear();
+    message->AddMessage(L"Menunggu antrian tugas");
+}
+
+namespace TabHistoryDelete
+{
+    UI::Window window;
+    UI::LabelWorkMessage message;
+    UI::ComboBox combobox;
+    UI::Button btnRestore;
+    UI::Button btnTampil;
+    UI::ProgressBar progress;
+    BookListView listView;
+
+    void SetEnable(bool enable)
+    {
+        combobox.SetEnable(enable);
+        btnRestore.SetEnable(enable);
+        btnTampil.SetEnable(enable);
+        listView.SetEnable(enable);
+    }
+
+    void DoRefresh()
+    {
+        progress.SetWaiting(true);
+        message.ReplaceLastMessage(L"Memuat data");
+
+        std::wstring type = combobox.GetSelectedText();
+        listView.items.resize(removeHistoryTree.count);
+        listView.SetRowCount(0);
+
+        Timer timer;
+
+        {
+            timer.start();
+
+            size_t current = 0;
+            std::function<void(RBNode<Book> *)> visitor = [&](RBNode<Book> *node)
+            {
+                listView.items[current] = &node->value;
+                current++;
+            };
+
+            if (type == L"Pre-order")
+                removeHistoryTree.preorder(removeHistoryTree.root, visitor);
+            else if (type == L"In-order")
+                removeHistoryTree.inorder(removeHistoryTree.root, visitor);
+            else if (type == L"Post-order")
+                removeHistoryTree.postorder(removeHistoryTree.root, visitor);
+
+            timer.end();
+        }
+
+        progress.SetWaiting(false);
+        listView.SetRowCount(removeHistoryTree.count);
+
+        message.ReplaceLastMessage(L"Data dimuat dalam " + timer.durationStr());
+        SetEnable(true);
+    }
+
+    void EnqueueRefreshList()
+    {
+        MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
+    }
+
+    LRESULT OnShowClick(UI::CallbackParam param)
+    {
+        EnqueueRefreshList();
+        return 0;
+    }
+
+    void DoRestore()
+    {
+        message.ReplaceLastMessage(L"Merestore buku");
+        progress.SetWaiting(true);
+
+        std::vector<Book> books;
+        for (int v : listView.GetSelectedIndex())
+        {
+            books.push_back(*listView.items[v]);
+        }
+
+        listView.SetRowCount(0);
+
+        Timer t;
+
+        t.start();
+        for (Book &book : books)
+        {
+            removeHistoryTree.remove(book);
+
+            hashTable.put(book.isbn, book);
+            tree.insert(std::move(book));
+        }
+        t.end();
+
+        progress.SetWaiting(false);
+        message.ReplaceLastMessage(L"Buku telah direstore dalam waktu " + t.durationStr());
+        MessageSetWait(&message, false);
+    }
+
+    LRESULT OnRestoreClick(UI::CallbackParam param)
+    {
+        MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRestore);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+        return 0;
+    }
+
+    LRESULT OnCreate(UI::CallbackParam param)
+    {
+        btnTampil.SetText(L"Tampilkan");
+        btnTampil.commandListener = OnShowClick;
+
+        btnRestore.SetText(L"Restore");
+        btnRestore.commandListener = OnRestoreClick;
+
+        window.controlsLayout = {
+            {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnTampil)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &message)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnRestore)}};
+
+        UI::LayoutControls(&window, true);
+
+        combobox.AddItem(L"Pre-order");
+        combobox.AddItem(L"In-order");
+        combobox.AddItem(L"Post-order");
+        combobox.SetSelectedIndex(1);
+
+        return 0;
+    }
+
+    void Init()
+    {
+        window.title = L"TabHistoryDelete";
+        window.registerMessageListener(WM_CREATE, OnCreate);
+    }
+}
+
 LRESULT OnAddClick(UI::CallbackParam param)
 {
     AddWindow::Show();
     return 0;
 }
 
-void RemoveByListViewSelection(UI::ListView &listView)
+void DoRemove(Book &&book, HWND window)
 {
-    for (int v : listView.GetSelectedIndex())
-    {
-        std::wstring isbn = listView.GetText(v, 0);
-        Book *buku = hashTable.get(isbn);
-        if (!tree.remove(*buku))
-            std::cout << "Penghapusan di RBTree gagal" << std::endl;
+    if (!tree.remove(book))
+        MessageBoxA(window, "Penghapusan di RBTree gagal", "Gagal", MB_OK);
 
-        if (!hashTable.remove(isbn))
-            std::cout << "Penghapusan di RobinHoodHashTable gagal" << std::endl;
+    if (!hashTable.remove(book.isbn))
+        MessageBoxA(window, "Penghapusan di RobinHoodHashTable gagal", "Gagal", MB_OK);
+
+    removeHistoryTree.insert(std::move(book));
+}
+
+void DoRemoveByListViewSelection(BookListView *listView, UI::ProgressBar *progress, UI::LabelWorkMessage *message)
+{
+    progress->SetWaiting(true);
+    message->ReplaceLastMessage(L"Menghapus data");
+
+    std::vector<Book> selectedBook;
+    for (int v : listView->GetSelectedIndex())
+    {
+        selectedBook.push_back(*listView->items[v]);
     }
 
-    RefreshAllList();
+    ClearAllList();
+
+    Timer t;
+
+    t.start();
+    for (Book &buku : selectedBook)
+    {
+        DoRemove(std::move(buku), listView->_window->hwnd);
+    }
+    t.end();
+
+    message->ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr() + L". Penghapusan mungkin terlihat lama karena proses mendapatkan pilihan dari UI");
+    MessageSetWait(message, false);
+    progress->SetWaiting(false);
 }
+
+void CopyISBNByListViewSelection(UI::ListView *listView)
+{
+    try
+    {
+        std::vector<int> focusedIndexs = listView->GetSelectedIndex();
+
+        if (focusedIndexs.size() == 0)
+            throw std::domain_error("Tidak ada item yang dipilih");
+        if (focusedIndexs.size() > 1)
+            throw std::domain_error("Item yang dipilih lebih dari 1");
+
+        std::wstring isbn = listView->GetText(focusedIndexs[0], 0);
+        Utils::CopyToClipboard(isbn);
+    }
+    catch (std::domain_error const &e)
+    {
+        MessageBoxA(listView->hwnd, e.what(), "Gagal", MB_OK);
+    }
+}
+
+namespace TabOldBooks
+{
+    UI::Label label;
+    UI::Window window;
+    UI::SpinBox spinBox;
+    UI::Button findButton;
+    UI::ProgressBar progress;
+    UI::LabelWorkMessage message;
+    UI::CheckBox ignoreInvalidYearCheck;
+    UI::Button btnAdd, btnDelete, btnCopyISBN;
+    BookListView listView;
+
+    void SetEnable(boolean enable)
+    {
+        spinBox.SetEnable(enable);
+        findButton.SetEnable(enable);
+        ignoreInvalidYearCheck.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+        btnCopyISBN.SetEnable(enable);
+        listView.SetEnable(enable);
+    }
+
+    void DoRefresh()
+    {
+        message.ReplaceLastMessage(L"Memproses data");
+        listView.SetRowCount(0);
+        progress.SetWaiting(true);
+
+        int count = spinBox.GetValue();
+        bool ignoreInvalid = ignoreInvalidYearCheck.GetCheck() == BST_CHECKED;
+
+        Timer timer;
+        timer.start();
+        TopKLargest<Book *, BookYearCompareReversed> topK(count);
+        tree.preorder(tree.root, [&](RBNode<Book> *node)
+                      {
+            if (node->value.year.size() != 4 && ignoreInvalid) return;
+            topK.add(&node->value); });
+
+        int listSize = topK.getCount();
+        listView.items.resize(listSize);
+
+        for (int i = listSize - 1; i >= 0; i--)
+        {
+            listView.items[i] = topK.removeTop();
+        }
+        timer.end();
+
+        listView.SetRowCount(listSize);
+        progress.SetWaiting(false);
+        message.ReplaceLastMessage(L"Data ditemukan dalam " + timer.durationStr());
+        SetEnable(true);
+    }
+
+    void EnqueueRefreshList()
+    {
+        MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
+    }
+
+    LRESULT OnFindClick(UI::CallbackParam param)
+    {
+        EnqueueRefreshList();
+        return 0;
+    }
+
+    void DoDelete()
+    {
+        DoRemoveByListViewSelection(&listView, &progress, &message);
+    }
+
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        MessageSetWait(&message);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoDelete);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+        return 0;
+    }
+
+    LRESULT OnCopyISBNClick(UI::CallbackParam param)
+    {
+        CopyISBNByListViewSelection(&listView);
+        return 0;
+    }
+
+    LRESULT OnCreate(UI::CallbackParam param)
+    {
+        label.SetText(L"Jumlah: ");
+
+        findButton.SetText(L"Temukan");
+        findButton.commandListener = OnFindClick;
+
+        ignoreInvalidYearCheck.SetText(L"Abaikan Buku dengan Tahun Tidak Valid");
+
+        btnCopyISBN.SetText(L"Salin ISBN");
+        btnCopyISBN.commandListener = OnCopyISBNClick;
+
+        btnAdd.SetText(L"Tambahkan Buku");
+        btnAdd.commandListener = OnAddClick;
+
+        btnDelete.SetText(L"Hapus Buku");
+        btnDelete.commandListener = OnDeleteClick;
+
+        window.controlsLayout = {
+            {UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &label),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &spinBox),
+             UI::ControlCell(250, UI::SIZE_DEFAULT, &ignoreInvalidYearCheck),
+             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &findButton)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &message)},
+            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
+             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
+
+        UI::LayoutControls(&window, true);
+
+        ignoreInvalidYearCheck.SetCheck(BST_CHECKED);
+        spinBox.SetRange(0, 1000);
+        spinBox.SetValue(100);
+
+        return 0;
+    };
+
+    void Init()
+    {
+        window.title = L"TabOldBooks";
+        window.registerMessageListener(WM_CREATE, OnCreate);
+    }
+};
 
 namespace TabFindBooksRange
 {
@@ -270,37 +629,28 @@ namespace TabFindBooksRange
     UI::Label fromLabel, toLabel;
     UI::TextBox fromTextBox, toTextBox;
     UI::Button btnFind;
-    UI::Button btnAdd;
-    UI::Button btnDelete;
+    UI::Button btnAdd, btnDelete, btnCopyISBN;
     UI::ProgressBar progress;
-    UI::Label label;
-    UI::Label labelk;
-    UI::VListView listView;
-    std::thread findThread;
-    std::vector<Book *> booksList;
+    UI::LabelWorkMessage label;
+    BookListView listView;
 
-    wchar_t *OnGetItem(int row, int column)
+    void SetEnable(boolean enable)
     {
-        Book *book = booksList[row];
-        if (column == 0)
-            return const_cast<wchar_t *>(book->isbn.c_str());
-        else if (column == 1)
-            return const_cast<wchar_t *>(book->title.c_str());
-        else if (column == 2)
-            return const_cast<wchar_t *>(book->author.c_str());
-        else if (column == 3)
-            return const_cast<wchar_t *>(book->publisher.c_str());
-        else if (column == 4)
-            return const_cast<wchar_t *>(book->year.c_str());
-        return nullptr;
+        fromTextBox.SetEnable(enable);
+        toTextBox.SetEnable(enable);
+        btnFind.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+        btnCopyISBN.SetEnable(enable);
+        listView.SetEnable(enable);
     }
 
     void DoRefresh()
     {
-        booksList.clear();
+        listView.items.clear();
         listView.SetRowCount(0);
 
-        label.SetText(L"Menemukan data");
+        label.ReplaceLastMessage(L"Menemukan data");
         Timer timer;
 
         progress.SetWaiting(true);
@@ -308,39 +658,50 @@ namespace TabFindBooksRange
         {
             timer.start();
             tree.findBetween(Book{L".", fromTextBox.getText()}, {L":", toTextBox.getText()}, [&](RBNode<Book> *node)
-                             { booksList.push_back(&node->value); });
+                             { listView.items.push_back(&node->value); });
             timer.end();
         }
 
         progress.SetWaiting(false);
-        listView.SetRowCount(booksList.size());
+        listView.SetRowCount(listView.items.size());
 
-        std::wstringstream stream;
-        stream << "Data ditemukan dalam dalam " << timer.durationStr();
-        label.SetText(stream.str().c_str());
+        label.ReplaceLastMessage(L"Data ditemukan dalam dalam " + timer.durationStr());
         progress.SetWaiting(false);
-        btnFind.SetEnable(true);
+
+        SetEnable(true);
     }
 
-    void RefreshList()
+    void EnqueueRefreshList()
     {
-        btnFind.SetEnable(false);
-        if (findThread.joinable())
-        {
-            findThread.join();
-        }
-        findThread = std::thread(DoRefresh);
+        MessageSetWait(&label);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnFindClick(UI::CallbackParam param)
     {
-        RefreshList();
+        EnqueueRefreshList();
         return 0;
+    }
+
+    void DoDelete()
+    {
+        DoRemoveByListViewSelection(&listView, &progress, &label);
     }
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        RemoveByListViewSelection(listView);
+        MessageSetWait(&label);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoDelete);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+        return 0;
+    }
+
+    LRESULT OnCopyISBNClick(UI::CallbackParam param)
+    {
+        CopyISBNByListViewSelection(&listView);
         return 0;
     }
 
@@ -349,17 +710,11 @@ namespace TabFindBooksRange
         fromLabel.SetText(L"Dari");
         toLabel.SetText(L"Ke");
 
-        fromTextBox._dwStyle |= WS_BORDER;
-        toTextBox._dwStyle |= WS_BORDER;
-
         btnFind.SetText(L"Cari");
         btnFind.commandListener = OnFindClick;
 
-        label.SetText(L"Data belum dimuat");
-        labelk.SetText(L" ");
-
-        listView._dwStyle |= LVS_REPORT | WS_BORDER;
-        listView.itemGetter = OnGetItem;
+        btnCopyISBN.SetText(L"Salin ISBN");
+        btnCopyISBN.commandListener = OnCopyISBNClick;
 
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
@@ -376,17 +731,12 @@ namespace TabFindBooksRange
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
 
         UI::LayoutControls(&window, true);
-
-        listView.InsertColumn(L"ISBN", 100);
-        listView.InsertColumn(L"Judul", 200);
-        listView.InsertColumn(L"Penulis", 100);
-        listView.InsertColumn(L"Penerbit", 100);
-        listView.InsertColumn(L"Tahun", 100);
 
         return 0;
     }
@@ -405,38 +755,30 @@ namespace TabAllBooks
     UI::Button button;
     UI::Button btnAdd;
     UI::Button btnDelete;
+    UI::Button btnCopyISBN;
     UI::ProgressBar progress;
-    UI::Label label;
-    UI::Label labelk;
-    UI::VListView listView;
-    std::thread showThread;
-    std::vector<Book *> booksList;
+    UI::LabelWorkMessage label;
+    BookListView listView;
 
-    wchar_t *OnGetItem(int row, int column)
+    void SetEnable(boolean enable)
     {
-        Book *book = booksList[row];
-        if (column == 0)
-            return const_cast<wchar_t *>(book->isbn.c_str());
-        else if (column == 1)
-            return const_cast<wchar_t *>(book->title.c_str());
-        else if (column == 2)
-            return const_cast<wchar_t *>(book->author.c_str());
-        else if (column == 3)
-            return const_cast<wchar_t *>(book->publisher.c_str());
-        else if (column == 4)
-            return const_cast<wchar_t *>(book->year.c_str());
-        return nullptr;
+        combobox.SetEnable(enable);
+        button.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+        btnCopyISBN.SetEnable(enable);
+        listView.SetEnable(enable);
     }
 
     void DoRefresh()
     {
         std::wstring type = combobox.GetSelectedText();
 
-        booksList.resize(tree.count);
+        listView.items.resize(tree.count);
         listView.SetRowCount(0);
 
-        label.SetText(L"Memuat data");
         Timer timer;
+        label.ReplaceLastMessage(L"Memuat data");
 
         progress.SetWaiting(true);
 
@@ -445,7 +787,7 @@ namespace TabAllBooks
             size_t current = 0;
             std::function<void(RBNode<Book> *)> visitor = [&](RBNode<Book> *node)
             {
-                booksList[current] = &node->value;
+                listView.items[current] = &node->value;
                 current++;
             };
             if (type == L"In-order")
@@ -458,34 +800,44 @@ namespace TabAllBooks
         }
 
         progress.SetWaiting(false);
-        listView.SetRowCount(booksList.size());
+        listView.SetRowCount(listView.items.size());
 
-        std::wstringstream stream;
-        stream << "Data dimuat dalam " << timer.durationStr();
-        label.SetText(stream.str().c_str());
+        label.ReplaceLastMessage(L"Data dimuat dalam " + timer.durationStr());
 
-        button.SetEnable(true);
+        SetEnable(true);
     }
 
-    void RefreshList()
+    void EnqueueRefreshList()
     {
-        button.SetEnable(false);
-        if (showThread.joinable())
-        {
-            showThread.join();
-        }
-        showThread = std::thread(DoRefresh);
+        MessageSetWait(&label);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnShowClick(UI::CallbackParam param)
     {
-        RefreshList();
+        EnqueueRefreshList();
         return 0;
+    }
+
+    void DoDelete()
+    {
+        DoRemoveByListViewSelection(&listView, &progress, &label);
     }
 
     LRESULT OnDeleteClick(UI::CallbackParam param)
     {
-        RemoveByListViewSelection(listView);
+        MessageSetWait(&label);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoDelete);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+        return 0;
+    }
+
+    LRESULT OnCopyISBNClick(UI::CallbackParam param)
+    {
+        CopyISBNByListViewSelection(&listView);
         return 0;
     }
 
@@ -493,11 +845,6 @@ namespace TabAllBooks
     {
         button.SetText(L"Tampilkan");
         button.commandListener = OnShowClick;
-        label.SetText(L"Data belum dimuat");
-        listView._dwStyle |= LVS_REPORT | WS_BORDER;
-        listView.itemGetter = OnGetItem;
-
-        labelk.SetText(L" ");
 
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
@@ -505,13 +852,17 @@ namespace TabAllBooks
         btnDelete.SetText(L"Hapus Buku");
         btnDelete.commandListener = OnDeleteClick;
 
+        btnCopyISBN.SetText(L"Salin ISBN");
+        btnCopyISBN.commandListener = OnCopyISBNClick;
+
         window.controlsLayout = {
             {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &button)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
+             UI::ControlCell(100, UI::SIZE_DEFAULT, &btnCopyISBN),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
@@ -520,12 +871,6 @@ namespace TabAllBooks
         combobox.AddItem(L"In-order");
         combobox.AddItem(L"Post-order");
         combobox.SetSelectedIndex(1);
-
-        listView.InsertColumn(L"ISBN", 100);
-        listView.InsertColumn(L"Judul Buku", 200);
-        listView.InsertColumn(L"Penulis", 200);
-        listView.InsertColumn(L"Penerbit", 200);
-        listView.InsertColumn(L"Year", 100);
 
         return 0;
     }
@@ -540,19 +885,27 @@ namespace TabAllBooks
 namespace TabDetailsBooks
 {
     UI::Window window;
-    UI::Label label;
+    UI::LabelWorkMessage label;
     UI::Label ISBNlabel;
     UI::Button btnSearch;
     UI::TextBox ISBNTextBox;
     UI::StatusBar statusBar;
     UI::ListView listView;
-    UI::Label labelk;
     UI::Button btnAdd;
     UI::Button btnDelete;
+    Book currentBook;
 
-    void DoFind()
+    void SetEnable(boolean enable)
     {
-        label.SetText(L"Mencari buku sesuai dengan ISBN");
+        btnSearch.SetEnable(enable);
+        listView.SetEnable(enable);
+        btnAdd.SetEnable(enable);
+        btnDelete.SetEnable(enable);
+    }
+
+    void DoRefresh()
+    {
+        label.ReplaceLastMessage(L"Mencari buku sesuai dengan ISBN");
         Timer timer;
 
         {
@@ -562,43 +915,77 @@ namespace TabDetailsBooks
             timer.end();
             if (buku == nullptr)
             {
-                label.SetText(L"TIdak Di Temukan");
+                label.ReplaceLastMessage(L"Tidak ditemukan. Membutuhkan waktu " + timer.durationStr());
+                currentBook = {};
             }
             else
             {
-                listView.SetText(0, 1, buku->isbn);
-                listView.SetText(1, 1, buku->title);
-                listView.SetText(2, 1, buku->author);
-                listView.SetText(3, 1, buku->publisher);
-                listView.SetText(4, 1, buku->year);
+                label.ReplaceLastMessage(L"Ditemukan dalam waktu " + timer.durationStr());
+                currentBook = *buku;
             }
+
+            listView.SetText(0, 1, currentBook.isbn);
+            listView.SetText(1, 1, currentBook.title);
+            listView.SetText(2, 1, currentBook.author);
+            listView.SetText(3, 1, currentBook.publisher);
+            listView.SetText(4, 1, currentBook.year);
         }
-        btnSearch.SetEnable(true);
+        SetEnable(true);
+    }
+
+    void EnqueueRefresh()
+    {
+        MessageSetWait(&label);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoRefresh);
     }
 
     LRESULT OnFindClick(UI::CallbackParam)
     {
-        btnSearch.SetEnable(false);
-        DoFind();
+        EnqueueRefresh();
+        return 0;
+    }
+
+    void DoDelete()
+    {
+        ClearAllList();
+        label.ReplaceLastMessage(L"Menghapus data");
+        Timer t;
+
+        t.start();
+        DoRemove(std::move(currentBook), window.hwnd);
+        t.end();
+
+        label.ReplaceLastMessage(L"Penghapusan selesai dalam " + t.durationStr());
+        label.AddMessage(L"Memuat data");
+    }
+
+    LRESULT OnDeleteClick(UI::CallbackParam param)
+    {
+        if (currentBook.isbn.empty())
+            return 0;
+
+        MessageSetWait(&label);
+        SetEnable(false);
+        WorkerThread::EnqueueWork(DoDelete);
+        WorkerThread::EnqueueWork(DoRefresh);
+        EnqueueRefreshAll(&window);
+
         return 0;
     }
 
     LRESULT onCreate(UI::CallbackParam param)
     {
         ISBNlabel.SetText(L"Cari Berdasarkan ISBN :");
-        ISBNTextBox._dwStyle |= WS_BORDER;
 
         btnSearch.SetText(L"Cari");
         btnSearch.commandListener = OnFindClick;
-
-        label.SetText(L"Data Belum Dimuat");
-
-        labelk.SetText(L" ");
 
         btnAdd.SetText(L"Tambahkan Buku");
         btnAdd.commandListener = OnAddClick;
 
         btnDelete.SetText(L"Hapus Buku");
+        btnDelete.commandListener = OnDeleteClick;
 
         listView._dwStyle |= LVS_REPORT | WS_BORDER;
 
@@ -608,18 +995,17 @@ namespace TabDetailsBooks
              UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnSearch)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label),
-             UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
+            {UI::EmptyCell(UI::SIZE_FILL, UI::SIZE_DEFAULT),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnAdd),
              UI::ControlCell(180, UI::SIZE_DEFAULT, &btnDelete)}};
         UI::LayoutControls(&window, true);
 
         listView.InsertColumn(L"Prop", 100);
-        listView.InsertRow(L"ISBN               :");
-        listView.InsertRow(L"Judul Buku        :");
-        listView.InsertRow(L"Penulis Buku      :");
-        listView.InsertRow(L"Tahun Terbit     :");
-        listView.InsertRow(L"Penerbit Buku  :");
+        listView.InsertRow(L"ISBN");
+        listView.InsertRow(L"Judul Buku");
+        listView.InsertRow(L"Penulis Buku");
+        listView.InsertRow(L"Penerbit Buku");
+        listView.InsertRow(L"Tahun Terbit");
         listView.InsertColumn(L"Value", 200);
 
         return 0;
@@ -632,75 +1018,12 @@ namespace TabDetailsBooks
     }
 }
 
-namespace TabHistoryDelete
-{
-    UI::Window window;
-    UI::Label label;
-    UI::ComboBox combobox;
-    UI::Button btnRestore;
-    UI::Button btnTampil;
-    UI::Label labelk;
-    UI::ProgressBar progress;
-    UI::ListView listView;
-    std::thread showThread;
-
-    LRESULT OnShowClick(UI::CallbackParam param)
-    {
-        btnTampil.SetEnable(false);
-        if (showThread.joinable())
-        {
-            showThread.join();
-        }
-        // showThread = std::thread(DoShow);
-        return 0;
-    }
-
-    LRESULT OnCreate(UI::CallbackParam param)
-    {
-        btnTampil.SetText(L"Tampilkan");
-        label.SetText(L"Data Belum Dimuat");
-        labelk.SetText(L" ");
-        btnRestore.SetText(L"Restore");
-
-        listView._dwStyle |= LVS_REPORT | WS_BORDER;
-
-        window.controlsLayout = {
-            {UI::ControlCell(90, UI::SIZE_DEFAULT, &combobox),
-             UI::ControlCell(UI::SIZE_DEFAULT, UI::SIZE_DEFAULT, &btnTampil)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &progress)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &label)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &listView)},
-            {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_DEFAULT, &labelk),
-             UI::ControlCell(180, UI::SIZE_DEFAULT, &btnRestore)}};
-
-        UI::LayoutControls(&window, true);
-
-        combobox.AddItem(L"PreOrder");
-        combobox.AddItem(L"InOrder");
-        combobox.AddItem(L"PostOrder");
-        combobox.SetSelectedIndex(1);
-
-        listView.InsertColumn(L"ISBN", 100);
-        listView.InsertColumn(L"Judul Buku", 200);
-
-        return 0;
-    }
-
-    void Init()
-    {
-        window.title = L"TabHistoryDelete";
-        window.registerMessageListener(WM_CREATE, OnCreate);
-    }
-
-}
-
 namespace MainWindow
 {
     UI::Window window;
     UI::Tabs tabs;
     UI::StatusBar statusBar;
     UI::ProgressBar progressBar;
-    std::thread loadThread;
 
     void DoLoad()
     {
@@ -730,42 +1053,36 @@ namespace MainWindow
                     Utils::stringviewToWstring(reader.data[publisherIndex]),
                     Utils::stringviewToWstring(reader.data[yearIndex])};
                 hashTable.put(book.isbn, book);
-                // hashTable.insert(std::make_pair(book.isbn, book));
                 tree.insert(std::move(book));
             }
             timer.end();
         }
         progressBar.SetWaiting(false);
 
-        std::wstringstream stream;
-        stream << L"Data dimuat dari CSV dalam " << timer.durationStr();
-        statusBar.SetText(1, stream.str());
+        statusBar.SetText(1, L"Data dimuat dari CSV dalam " + timer.durationStr());
+    }
 
-        size_t maxPsl = 0;
-        std::wstring isbn = L"";
-        for (size_t i = 0; i < hashTable.bucketSize; i++)
-        {
-            if (hashTable.buckets[i].filled)
-            {
-                if (hashTable.buckets[i].psl >= maxPsl)
-                {
-                    maxPsl = hashTable.buckets[i].psl;
-                    isbn = hashTable.buckets[i].key;
-                }
-            }
+    LRESULT OnClose(UI::CallbackParam param) {
+        if (!WorkerThread::IsWorking()) {
+            window.Destroy();
+            return 0;
         }
 
-        std::cout << "Max PSL: " << maxPsl << std::endl;
+        MessageBoxW(window.hwnd, L"Menunggu tugas selesai", L"Tunggu Dulu", MB_OK);
 
-        timer.start();
-        std::wcout << hashTable.get(isbn)->isbn << std::endl;
-        std::wcout << hashTable.get(L"0374157065")->title << std::endl;
-        // timer.end();
-        // std::wcout << timer.durationMs() << std::endl;
+        return 0;
+    }
+
+    LRESULT OnDestroy(UI::CallbackParam param)
+    {
+        WorkerThread::Destroy();
+        return 0;
     }
 
     LRESULT OnCreate(UI::CallbackParam param)
     {
+        AddWindow::window.parentHwnd = window.hwnd;
+
         window.controlsLayout = {
             {UI::ControlCell(UI::SIZE_FILL, UI::SIZE_FILL, &tabs)}};
         window.layouter.paddingBottom = 20;
@@ -784,13 +1101,17 @@ namespace MainWindow
         TabFindBooksRange::Init();
         tabs.AddPage(L"Temukan Buku dalam Rentang", &TabFindBooksRange::window);
 
+        TabOldBooks::Init();
+        tabs.AddPage(L"Buku Tertua", &TabOldBooks::window);
+
         TabDetailsBooks::Init();
         tabs.AddPage(L"Details Buku", &TabDetailsBooks::window);
 
         TabHistoryDelete::Init();
         tabs.AddPage(L"Delete History", &TabHistoryDelete::window);
 
-        loadThread = std::thread(DoLoad);
+        WorkerThread::EnqueueWork(DoLoad);
+        EnqueueRefreshAll(&window);
 
         return 0;
     }
@@ -800,18 +1121,37 @@ namespace MainWindow
         window.quitWhenClose = true;
         window.title = L"MainWindow";
         window.registerMessageListener(WM_CREATE, OnCreate);
+        window.registerMessageListener(WM_CLOSE, OnClose);
+        window.registerMessageListener(WM_DESTROY, OnDestroy);
         UI::ShowWindowClass(window);
     }
 }
 
-void RefreshAllList()
+void ClearAllList()
 {
-    TabAllBooks::RefreshList();
-    TabFindBooksRange::RefreshList();
+    TabAllBooks::listView.SetRowCount(0);
+    TabFindBooksRange::listView.SetRowCount(0);
+    TabOldBooks::listView.SetRowCount(0);
+}
+
+void EnqueueRefreshAll(UI::Window *callerWindow)
+{
+    if (callerWindow != &TabAllBooks::window)
+        TabAllBooks::EnqueueRefreshList();
+    if (callerWindow != &TabFindBooksRange::window)
+        TabFindBooksRange::EnqueueRefreshList();
+    if (callerWindow != &TabOldBooks::window)
+        TabOldBooks::EnqueueRefreshList();
+    if (callerWindow != &TabDetailsBooks::window)
+        TabDetailsBooks::EnqueueRefresh();
+    if (callerWindow != &TabHistoryDelete::window)
+        TabHistoryDelete::EnqueueRefreshList();
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int cmdShow)
 {
+    WorkerThread::Init();
+
     UI::Setup(hInst, cmdShow);
     MainWindow::Show();
     return UI::RunEventLoop();

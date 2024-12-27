@@ -20,10 +20,10 @@ struct RBTree
     using NodeType = RBNode<T>;
     NodeType *root = nullptr;
     size_t count = 0;
-    K isLess;
+    K comparer;
     NodeType *nil;
 
-    RBTree(K comparer) : isLess(comparer)
+    RBTree()
     {
         nil = new NodeType();
         nil->left = nullptr;
@@ -54,11 +54,12 @@ struct RBTree
             {
                 y = x;
 
-                if (isLess(z->value, x->value))
+                int cmp = comparer.compare(z->value, x->value);
+                if (cmp < 0)
                 {
                     x = x->left;
                 }
-                else if (isLess(x->value, z->value))
+                else if (cmp > 0)
                 {
                     x = x->right;
                 }
@@ -69,7 +70,7 @@ struct RBTree
             }
 
             z->parent = y;
-            if (isLess(z->value, y->value))
+            if (comparer.compare(z->value, y->value) < 0)
             {
                 y->left = z;
             }
@@ -77,19 +78,19 @@ struct RBTree
             {
                 y->right = z;
             }
-
-            count++;
             insertFixUp(z);
         }
+        count++;
     }
 
     NodeType *findNode(const T &value)
     {
         NodeType *current = root;
+        int cmp;
 
-        while (current != nil && (isLess(current->value, value) || isLess(value, current->value)))
+        while (current != nil && (cmp = comparer.compare(value, current->value), cmp != 0))
         {
-            if (isLess(value, current->value))
+            if (cmp < 0)
             {
                 current = current->left;
             }
@@ -179,6 +180,8 @@ struct RBTree
         delete z;
         if (!yOrigRed)
             removeFixUp(x);
+
+        count--;
     }
 
     void removeFixUp(NodeType *x)
@@ -268,19 +271,20 @@ struct RBTree
             return;
         }
 
-        // node->value >= from          node->value <= to
-        // !(node->value < from)        !(node->value > to)
-        //                              !(to < node->value)
-        if (!isLess(node->value, from) && !isLess(to, node->value))
+        int cmpFrom = comparer.compare(node->value, from);
+        int cmpTo = comparer.compare(node->value, to);
+        if (cmpFrom >= 0 && cmpTo <= 0)
         {
             internalFindBetween(node->left, from, to, visitor);
             visitor(node);
             internalFindBetween(node->right, from, to, visitor);
         }
-        else if (isLess(node->value, from))
+        // cmpFrom < 0 && cmpTo <= 0
+        else if (cmpFrom < 0)
         {
             internalFindBetween(node->right, from, to, visitor);
         }
+        // cmpFrom >= 0 && cmpTo > 0
         else
         {
             internalFindBetween(node->left, from, to, visitor);

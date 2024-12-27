@@ -16,6 +16,7 @@
 #include <numeric>
 #include <limits>
 #include <stdexcept>
+#include <iostream>
 
 namespace UI
 {
@@ -107,18 +108,29 @@ namespace UI
         }
     }
 
+    struct ComCtl
+    {
+        using InitControlsT = void(WINAPI *)(void);
+        InitControlsT InitControls;
+        using SetWindowSubclassT = BOOL(WINAPI *)(HWND, SUBCLASSPROC, UINT_PTR, DWORD_PTR);
+        SetWindowSubclassT SetWindowSubclass;
+        using DefSubclassProcT = LRESULT(WINAPI *)(HWND, UINT, WPARAM, LPARAM);
+        DefSubclassProcT DefSubclassProc;
+    } comCtl;
+
     /**
      * Memuat library Comctl32.dll dan memanggil fungsi InitCommonControls
      * InitCommonControls akan menginisialisi kontrol umum seperti ListView agar bisa digunakan aplikasi
      */
-    void _CommCtlInitCommonControl()
+    void _ComCtlInit()
     {
         HINSTANCE inst = _LoadLibrary("Comctl32.dll");
 
-        using InitControlsT = void(WINAPI *)(void);
-        InitControlsT func = _GetProcAddress<InitControlsT>(inst, "InitCommonControls");
+        comCtl.InitControls = _GetProcAddress<ComCtl::InitControlsT>(inst, "InitCommonControls");
+        comCtl.SetWindowSubclass = _GetProcAddress<ComCtl::SetWindowSubclassT>(inst, "SetWindowSubclass");
+        comCtl.DefSubclassProc = _GetProcAddress<ComCtl::DefSubclassProcT>(inst, "DefSubclassProc");
 
-        func();
+        comCtl.InitControls();
     }
 
     /**
@@ -151,7 +163,7 @@ namespace UI
     void Setup(HINSTANCE instance, int nCmdShow)
     {
         _LoadManifest();
-        _CommCtlInitCommonControl();
+        _ComCtlInit();
         _LoadGDI();
         _InitFont();
         _hInstance = instance;
@@ -274,25 +286,34 @@ namespace UI
     struct Control;
     struct FixedControl;
 
-    struct ControlCell
+    struct LayoutCellData
     {
         LONG w;
         LONG h;
         Control *control;
-        /**
-         * Membuat sebuah sel baru
-         *
-         * @param w, h Ukuran dari kontrol. Akan diberikan ke layouter.
-         *             Jika SIZE_FILL maka ukuran kontrol akan memenuhi ruang yang ada
-         *             Jika SIZE_DEFAULT maka ukuran kontrol akan diisi nilai default
-         */
-        ControlCell(LONG w, LONG h, Control *control)
-        {
-            this->w = w;
-            this->h = h;
-            this->control = control;
-        }
     };
+
+    /**
+     * Membuat sebuah sel baru berisi kontrol
+     *
+     * @param w, h Ukuran dari kontrol. Akan diberikan ke layouter.
+     *             Jika SIZE_FILL maka ukuran kontrol akan memenuhi ruang yang ada
+     *             Jika SIZE_DEFAULT maka ukuran kontrol akan diisi nilai default
+     */
+    LayoutCellData ControlCell(LONG w, LONG h, Control *control)
+    {
+        return LayoutCellData{w, h, control};
+    }
+
+    /**
+     * Membuat sebuah sel koosng baru
+     *
+     * @param w, h @see ControlCell
+     */
+    LayoutCellData EmptyCell(LONG w, LONG h)
+    {
+        return LayoutCellData{w, h};
+    }
 
     /**
      * Struktur yang akan diberikan ke callback
@@ -372,7 +393,7 @@ namespace UI
          * Kontrol akan ditata berdasarkan isi array ini
          * Jangan lupa memanggil LayoutControls(&window, true) setalah menyetel nilai ini
          */
-        std::vector<std::vector<ControlCell>> controlsLayout;
+        std::vector<std::vector<LayoutCellData>> controlsLayout;
         /**
          * Array dinamis yang berisi kontrol yang memiliki posisi tetap, contohnya statusbar
          */
@@ -391,6 +412,11 @@ namespace UI
             _msgListeners.emplace(message, callback);
         }
 
+        void registerCommandListener(UINT_PTR cmd, CallbackType callback)
+        {
+            _cmdListeners.emplace(cmd, callback);
+        }
+
         /**
          * Menreset isi dari windows
          * Note: Jangan memenggail fungsi ini
@@ -406,9 +432,36 @@ namespace UI
             _ClearWindowControls(this);
         }
 
-        void Destroy() 
+        void Destroy()
         {
             DestroyWindow(hwnd);
+        }
+
+        void Close()
+        {
+            CloseWindow(hwnd);
+        }
+
+        void InitModal()
+        {
+            EnableWindow(parentHwnd, false);
+
+            registerMessageListener(WM_CLOSE, [&](UI::CallbackParam param)
+                                    {
+                EnableWindow(parentHwnd, true);
+                SetFocus(parentHwnd);
+                Destroy();
+                return 0; });
+        }
+
+        void CloseModal()
+        {
+            PostMessage(hwnd, WM_CLOSE, 0, 0);
+        }
+
+        void Focus()
+        {
+            SetFocus(hwnd);
         }
     };
 
@@ -440,6 +493,8 @@ namespace UI
          */
         DWORD _dwStyle = WS_CHILD | WS_VISIBLE, _dwExStyle = 0;
 
+        Window *_window;
+
         /**
          * Mendapatkan ukuran default kontrol.
          * Jika w = 0, maka akan diganti dengan cx hasil fungsi ini
@@ -460,6 +515,7 @@ namespace UI
          */
         virtual void Create(Window *window, HWND hParent, POINT pos, SIZE size)
         {
+            _window = window;
             if (_controlId == 0)
             {
                 _controlId = _nextControlId++;
@@ -535,7 +591,7 @@ namespace UI
 
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
-            _dwStyle |= ES_AUTOHSCROLL;
+            _dwStyle |= ES_AUTOHSCROLL | WS_BORDER;
             _className = WC_EDITW;
             Control::Create(window, hParent, pos, size);
             ApplyDefaultFont();
@@ -593,6 +649,134 @@ namespace UI
             if (hwnd != 0)
                 SetWindowTextW(hwnd, text.c_str());
         }
+
+        const std::wstring &GetText()
+        {
+            return _setupTitle;
+        }
+    };
+
+    struct LabelWorkMessage : Label
+    {
+        std::vector<std::wstring> _messages;
+
+        LabelWorkMessage()
+        {
+            _UpdateText();
+        }
+
+        void _UpdateText()
+        {
+            if (_messages.size() == 0)
+            {
+                SetText(L"...");
+            }
+            else
+            {
+                std::wstring text;
+                for (size_t i = 0; i < _messages.size(); i++)
+                {
+                    if (i > 0)
+                        text += L". ";
+                    text += _messages[i];
+                }
+                SetText(text);
+            }
+        }
+
+        void Clear()
+        {
+            _messages.clear();
+            _UpdateText();
+        }
+
+        void AddMessage(const std::wstring &text)
+        {
+            _messages.push_back(text);
+            _UpdateText();
+        }
+
+        void ReplaceLastMessage(const std::wstring &text)
+        {
+            _messages[_messages.size() - 1] = text;
+            _UpdateText();
+        }
+    };
+
+    struct UpDown : Control
+    {
+        void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
+        {
+            _className = UPDOWN_CLASSW;
+            Control::Create(window, hParent, pos, size);
+        }
+
+        SIZE GetDefaultSize() override
+        {
+            return {15, 23};
+        }
+    };
+
+    struct SpinBox : Control
+    {
+        TextBox _textBox;
+        UpDown _upDown;
+
+        void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
+        {
+            _className = WC_STATICW;
+            Control::Create(window, hParent, pos, size);
+
+            _textBox._dwStyle |= ES_NUMBER;
+            _textBox.Create(window, hwnd, {0, 0}, _textBox.GetDefaultSize());
+
+            _upDown._dwStyle |= UDS_SETBUDDYINT | UDS_ARROWKEYS;
+            _upDown.Create(window, hwnd, {_textBox.GetDefaultSize().cx + 1, 0}, _upDown.GetDefaultSize());
+
+            SendMessageW(_upDown.hwnd, UDM_SETBUDDY, reinterpret_cast<WPARAM>(_textBox.hwnd), 0);
+        }
+
+        void SetRange(int from, int to)
+        {
+            SendMessageW(_upDown.hwnd, UDM_SETRANGE32, static_cast<WPARAM>(from), static_cast<LPARAM>(to));
+        }
+
+        void SetValue(int value)
+        {
+            SendMessageW(_upDown.hwnd, UDM_SETPOS32, 0, static_cast<LPARAM>(value));
+        }
+
+        int GetValue()
+        {
+            bool invalid;
+            int value = static_cast<int>(SendMessageW(_upDown.hwnd, UDM_GETPOS32, 0, reinterpret_cast<LPARAM>(&invalid)));
+            if (invalid)
+            {
+                SetValue(value);
+            }
+            return value;
+        }
+
+        SIZE GetDefaultSize() override
+        {
+            SIZE upDownSz = _upDown.GetDefaultSize();
+            SIZE textBoxSz = _textBox.GetDefaultSize();
+            return {upDownSz.cx + 1 + textBoxSz.cx, std::max(upDownSz.cy, textBoxSz.cy)};
+        }
+
+        void UpdatePosDefer(HDWP hDefer, POINT pos, SIZE size) override
+        {
+            assert(hwnd != 0);
+            Control::UpdatePosDefer(hDefer, pos, size);
+
+            LONG upDownWidth = _upDown.GetDefaultSize().cx;
+            LONG textBoxWidth = size.cx - upDownWidth - 1;
+
+            HDWP hdwp = BeginDeferWindowPos(2);
+            _textBox.UpdatePosDefer(hdwp, {0, 0}, {textBoxWidth, size.cy});
+            _upDown.UpdatePosDefer(hdwp, {textBoxWidth + 1, 0}, {upDownWidth, size.cy});
+            EndDeferWindowPos(hdwp);
+        }
     };
 
     /**
@@ -617,7 +801,7 @@ namespace UI
             ApplyDefaultFont();
 
             if (commandListener)
-                window->_cmdListeners.emplace(_controlId, commandListener);
+                window->registerCommandListener(_controlId, commandListener);
         }
 
         /**
@@ -628,6 +812,57 @@ namespace UI
             _setupTitle = text;
             if (hwnd != 0)
                 SetWindowTextW(hwnd, text.c_str());
+        }
+    };
+
+    struct CheckBox : Button
+    {
+        void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
+        {
+            _dwStyle |= BS_AUTOCHECKBOX;
+            Button::Create(window, hParent, pos, size);
+        }
+
+        int GetCheck()
+        {
+            return SendMessageW(hwnd, BM_GETCHECK, 0, 0);
+        }
+
+        void SetCheck(int state)
+        {
+            SendMessageW(hwnd, BM_SETCHECK, static_cast<WPARAM>(state), 0);
+        }
+    };
+
+    struct Menu
+    {
+        HMENU handle;
+
+        Menu() : handle(0) {}
+        Menu(HMENU handle) : handle(handle) {}
+
+        bool IsCreated()
+        {
+            return handle != 0;
+        }
+
+        void Create()
+        {
+            handle = CreatePopupMenu();
+        }
+
+        UINT_PTR AddMenu(const std::wstring &caption)
+        {
+            UINT_PTR id = _nextControlId++;
+            InsertMenuW(handle, -1, MF_BYPOSITION | MF_STRING | MF_ENABLED, id, caption.c_str());
+            return id;
+        }
+
+        void ShowAtPoint(HWND hParent, POINT pt)
+        {
+            SetForegroundWindow(hParent);
+            TrackPopupMenu(handle, 0, pt.x, pt.y, 0, hParent, nullptr);
+            PostMessageW(hParent, WM_NULL, 0, 0);
         }
     };
 
@@ -731,14 +966,21 @@ namespace UI
             return buffer;
         }
 
-        void RemoveRow(int row) {
+        void RemoveRow(int row)
+        {
             ListView_DeleteItem(hwnd, row);
+        }
+
+        void SetExtendedStyle(DWORD dwStyle)
+        {
+            ListView_SetExtendedListViewStyle(hwnd, dwStyle);
         }
     };
 
-    struct VListView : ListView {
+    struct VListView : ListView
+    {
         size_t _columnCount = 0;
-        std::function<wchar_t*(int, int)> itemGetter;
+
 
         void Create(Window *window, HWND hParent, POINT pos, SIZE size) override
         {
@@ -748,44 +990,53 @@ namespace UI
 
             window->_notifyListeners.emplace(
                 std::make_pair(_controlId, LVN_GETDISPINFOW),
-                std::bind(&VListView::_OnLVNGetDispInfo, this, std::placeholders::_1)
-            );
+                std::bind(&VListView::_OnLVNGetDispInfo, this, std::placeholders::_1));
             _columnCount = 0;
         }
 
-        LRESULT _OnLVNGetDispInfo(UI::CallbackParam param) {
-            NMLVDISPINFOW* info = reinterpret_cast<NMLVDISPINFOW*>(param.lParam); 
+        LRESULT _OnLVNGetDispInfo(UI::CallbackParam param)
+        {
+            NMLVDISPINFOW *info = reinterpret_cast<NMLVDISPINFOW *>(param.lParam);
+            if ((info->item.mask & LVIF_TEXT) && info->item.iSubItem < (int)_columnCount)
+            {
+                const std::wstring *text = OnGetItem(info->item.iItem, info->item.iSubItem);
 
-            // if (info->item.mask & LVIF_STATE) {
-                // info->item.state |= LVIS_
-            // }
-            if (info->item.mask & LVIF_TEXT) {
-                if (info->item.iSubItem < _columnCount) {
-                    info->item.pszText = itemGetter(info->item.iItem, info->item.iSubItem);
+                if (text != nullptr) {
+                    info->item.pszText = const_cast<wchar_t*>(text->c_str());
                 }
             }
 
             return 0;
         }
 
-        void InsertColumn(const std::wstring &title, int width) {
-            _columnCount++;
-            ListView::InsertColumn(title, width);     
+        virtual const std::wstring *OnGetItem(int row, int column)
+        {
+            return nullptr;
         }
 
-        void DeleteAllRows() {
+        void InsertColumn(const std::wstring &title, int width)
+        {
+            _columnCount++;
+            ListView::InsertColumn(title, width);
+        }
+
+        void DeleteAllRows()
+        {
             throw std::invalid_argument("Cannot use DeleteAllRows in VListView");
         }
 
-        void RemoveRow() {
+        void RemoveRow()
+        {
             throw std::invalid_argument("Cannot use RemoveRow in VListView");
         }
 
-        int InsertRow(const std::wstring &text) {
+        int InsertRow(const std::wstring &text)
+        {
             throw std::invalid_argument("Cannot use InsertRow in VListView");
         }
 
-        void SetRowCount(size_t count) {
+        void SetRowCount(size_t count)
+        {
             ListView_SetItemCount(hwnd, static_cast<int>(count));
         }
     };
@@ -1080,9 +1331,9 @@ namespace UI
         if (!create)
         {
             int count = 0;
-            for (const std::vector<ControlCell> &row : window->controlsLayout)
+            for (const std::vector<LayoutCellData> &row : window->controlsLayout)
             {
-                count += window->controlsLayout.size();
+                count += row.size();
             }
 
             hDefer = BeginDeferWindowPos(count);
@@ -1097,15 +1348,15 @@ namespace UI
 
         for (size_t i = 0; i < window->controlsLayout.size(); i++)
         {
-            const std::vector<ControlCell> &row = window->controlsLayout[i];
+            const std::vector<LayoutCellData> &row = window->controlsLayout[i];
             std::vector<LayouterCell> &cells = window->layouter._cells[i];
             cells.resize(row.size());
 
             for (size_t j = 0; j < row.size(); j++)
             {
-                const ControlCell &controlCell = row[j];
+                const LayoutCellData &controlCell = row[j];
                 LayouterCell &cell = cells[j];
-                cell.defaultSize = controlCell.control->GetDefaultSize();
+                cell.defaultSize = controlCell.control == nullptr ? SIZE{0, 0} : controlCell.control->GetDefaultSize();
                 cell.size = {controlCell.w, controlCell.h};
             }
         }
@@ -1114,14 +1365,18 @@ namespace UI
 
         for (size_t i = 0; i < window->controlsLayout.size(); i++)
         {
-            const std::vector<ControlCell> &row = window->controlsLayout[i];
+            const std::vector<LayoutCellData> &row = window->controlsLayout[i];
             std::vector<LayouterCell> &cells = window->layouter._cells[i];
             cells.resize(row.size());
 
             for (size_t j = 0; j < row.size(); j++)
             {
-                const ControlCell &controlCell = row[j];
+                const LayoutCellData &controlCell = row[j];
                 LayouterCell &cell = cells[j];
+
+                if (controlCell.control == nullptr)
+                    continue;
+
                 if (create)
                 {
                     controlCell.control->Create(window, 0, cell.pos, cell.size);
@@ -1168,6 +1423,50 @@ namespace UI
             self = reinterpret_cast<Window *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
         }
 
+        UINT next = TRUE;
+        if (self)
+        {
+            switch (uMsg)
+            {
+            case WM_COMMAND:
+            {
+                auto func = self->_cmdListeners.find(LOWORD(wParam));
+                if (func != self->_cmdListeners.end())
+                {
+                    next = func->second({self,
+                                         uMsg,
+                                         wParam,
+                                         lParam});
+                }
+                break;
+            }
+            case WM_NOTIFY:
+            {
+                LPNMHDR param = reinterpret_cast<LPNMHDR>(lParam);
+                auto func = self->_notifyListeners.find(std::make_pair(param->idFrom, param->code));
+                if (func != self->_notifyListeners.end())
+                {
+                    next = func->second({self,
+                                         uMsg,
+                                         wParam,
+                                         lParam});
+                }
+                break;
+            }
+            default:
+            {
+                auto func = self->_msgListeners.find(uMsg);
+
+                if (func != self->_msgListeners.end())
+                {
+                    next = func->second({self, uMsg, wParam, lParam});
+                }
+                break;
+            }
+            }
+        }
+
+        // Fungsi berikur harus selalu dijalankan
         switch (uMsg)
         {
         case WM_DESTROY:
@@ -1175,61 +1474,18 @@ namespace UI
             if (self->quitWhenClose)
             {
                 PostQuitMessage(0);
-                return 0;
             }
             self->Clear();
             break;
         }
         case WM_SIZE:
             LayoutControls(self, false);
-            return 0;
-        case WM_COMMAND:
-        {
-            if (self)
-            {
-                auto func = self->_cmdListeners.find(LOWORD(wParam));
-                if (func != self->_cmdListeners.end())
-                {
-                    return func->second({self,
-                                         uMsg,
-                                         wParam,
-                                         lParam});
-                }
-            }
             break;
         }
-        case WM_NOTIFY:
-        {
-            if (self)
-            {
-                LPNMHDR param = reinterpret_cast<LPNMHDR>(lParam);
-                auto func = self->_notifyListeners.find(std::make_pair(param->idFrom, param->code));
-                if (func != self->_notifyListeners.end())
-                {
-                    return func->second({self,
-                                         uMsg,
-                                         wParam,
-                                         lParam});
-                }
-            }
-            break;
-        }
-        }
 
-        if (self)
-        {
-            auto func = self->_msgListeners.find(uMsg);
-
-            if (func != self->_msgListeners.end())
-            {
-                return func->second({self,
-                                     uMsg,
-                                     wParam,
-                                     lParam});
-            }
-        }
-
-        return DefWindowProcW(hwnd, uMsg, wParam, lParam);
+        if (next)
+            return DefWindowProc(hwnd, uMsg, wParam, lParam);
+        return next;
     }
 
     /**

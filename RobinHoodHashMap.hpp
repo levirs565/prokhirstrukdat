@@ -71,13 +71,13 @@ struct RobinHoodHashMap
     size_t bucketSize = 0;
     size_t minBucketSize = 524288;
 
-    H computeHash;
+    H hasher;
 
     /**
      * Konstruktor untuk RobinHoodHashMap
      * hasher harus berupa fungsi yang menghasilkan hash dan harus bertipe H
      */
-    RobinHoodHashMap(H hasher) : computeHash(hasher)
+    RobinHoodHashMap()
     {
         resize(minBucketSize);
     }
@@ -110,7 +110,7 @@ struct RobinHoodHashMap
      */
     V* get(const K& key)
     {
-        const uint64_t hash = computeHash(key);
+        const uint64_t hash = hasher.hash(key);
 
         // std::cout << hash << std::endl;
         size_t currentPsl = 0, i = hash % bucketSize;
@@ -160,7 +160,7 @@ struct RobinHoodHashMap
      */
     void internalInsert(const K &key, const V &value)
     {
-        const uint64_t hash = computeHash(key);
+        const uint64_t hash = hasher.hash(key);
         // std::cout << hash << std::endl;
 
         BucketType current;
@@ -243,7 +243,7 @@ struct RobinHoodHashMap
     }
 
     bool remove(const K& key) {
-        const uint64_t hash = computeHash(key);
+        const uint64_t hash = hasher.hash(key);
 
         size_t currentPsl = 0, i = hash % bucketSize;
         BucketType *bucket;
