@@ -118,6 +118,21 @@ namespace AddWindow
     UI::Button addButton;
     HospitalPatient patient;
 
+    void DoAdd() {
+        lastId = patient.id;
+
+        Timer t;
+        t.start();
+        hashTable.put(patient.id, patient);
+        tree.insert(std::move(patient));
+        t.end();
+
+        std::wstring message = L"Data ditambahkan dalam " + t.durationStr();
+        MessageBoxW(window.hwnd, message.c_str(), L"Berhasil", MB_OK);
+
+        window.CloseModal();
+    }
+
     LRESULT OnAddClick(UI::CallbackParam param)
     {
         patient.name = nameTextBox.getText();
@@ -134,11 +149,9 @@ namespace AddWindow
             MessageBoxA(window.hwnd, e.what(), "Gagal", MB_OK);
             return 0;
         }
-        lastId = patient.id;
-        hashTable.put(patient.id, patient);
-        tree.insert(std::move(patient));
-
-        window.CloseModal();
+        addButton.SetEnable(false);
+        WorkerThread::EnqueueWork(DoAdd);
+        EnqueueRefreshAll(&window);
         return 0;
     }
 
