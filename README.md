@@ -56,6 +56,8 @@ Perintah untuk compile:
 g++ -Wall --std=c++11 -o File.exe File.cpp
 ```
 
+Compiler yang telah diuji adalah TDM GCC 10 dan MingwW64 Build Posix UCRT 12.2.
+
 Di semua tugas terdapat fitur history delete dan mempunyai kemampuan restore. Tugas Buku, Rumah Sakit, dan Toko telah menggunakan data dari CSV.
 
 ## Buku
