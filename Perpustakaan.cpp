@@ -645,13 +645,14 @@ namespace TabFindBooksRange
         listView.SetRowCount(0);
 
         label.ReplaceLastMessage(L"Menemukan data");
+        std::wstring from = fromTextBox.getText(), to = toTextBox.getText();
         Timer timer;
 
         progress.SetWaiting(true);
 
         {
             timer.start();
-            tree.findBetween(Book{L".", fromTextBox.getText()}, {L":", toTextBox.getText()}, [&](RBNode<Book> *node)
+            tree.findBetween(Book{L".", from}, {L":", to}, [&](RBNode<Book> *node)
                              { listView.items.push_back(&node->value); });
             timer.end();
         }
