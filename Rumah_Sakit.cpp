@@ -4,6 +4,7 @@
 #include "HalfSipHash.h"
 #include "RBTree.hpp"
 #include "RobinHoodHashMap.hpp"
+#include "CSVReader.hpp"
 #include <sstream>
 #include <iomanip>
 
@@ -31,7 +32,7 @@ const std::wstring &GetPatientGroupName(PatientGroup group)
 
 struct HospitalPatient
 {
-    std::wstring name, id;
+    std::wstring id, name;
     PatientGroup group;
     SYSTEMTIME start, end;
 
@@ -103,13 +104,19 @@ namespace AddWindow
     {
         patient.name = nameTextBox.getText();
 
-        try {
-            if (patient.name.empty()) throw std::domain_error("Nama tidak boleh kosong");
-            if (patient.GetDurationDay() <= 0) throw std::domain_error("Tanggal sampai harus lebih dari tanggal dari");
-        } catch (std::domain_error const& e) {
+        try
+        {
+            if (patient.name.empty())
+                throw std::domain_error("Nama tidak boleh kosong");
+            if (patient.GetDurationDay() <= 0)
+                throw std::domain_error("Tanggal sampai harus lebih dari tanggal dari");
+        }
+        catch (std::domain_error const &e)
+        {
             MessageBoxA(window.hwnd, e.what(), "Gagal", MB_OK);
             return 0;
         }
+        lastId = patient.id;
         hashTable.put(patient.id, patient);
         tree.insert(std::move(patient));
 
@@ -509,8 +516,7 @@ namespace TabAllPatient
         listView.SetEnable(enable);
     }
 
-    LRESULT OnShowClick(UI::CallbackParam param)
-    {
+    void DoShow() {
         listView.SetRowCount(0);
         listView.items.resize(tree.count);
 
@@ -521,7 +527,11 @@ namespace TabAllPatient
             current++; });
 
         listView.SetRowCount(tree.count);
+    }
 
+    LRESULT OnShowClick(UI::CallbackParam param)
+    {
+        DoShow();
         return 0;
     }
 
@@ -568,6 +578,33 @@ namespace MainWindow
     UI::Window window;
     UI::Tabs tabs;
 
+    void DoLoad()
+    {
+        CSVReader<CSVReaderIOBuffSync> reader("data/Rumah_Sakit.csv", ',');
+
+        reader.startRead();
+
+        int idIndex = reader.findHeaderIndex("ID");
+        int nameIndex = reader.findHeaderIndex("Name");
+        int groupIndex = reader.findHeaderIndex("Group");
+        int startIndex = reader.findHeaderIndex("StartDate");
+        int endIndex = reader.findHeaderIndex("EndDate");
+
+        while (reader.readData())
+        {
+            HospitalPatient patient{
+                Utils::stringviewToWstring(reader.data[idIndex]),
+                Utils::stringviewToWstring(reader.data[nameIndex]),
+                PatientGroup(reader.data[groupIndex].begin[0] - 'A'),
+                Utils::DateStrToSystemTime(Utils::stringviewToWstring(reader.data[startIndex])),
+                Utils::DateStrToSystemTime(Utils::stringviewToWstring(reader.data[endIndex])),
+            };
+            if (patient.id > lastId) lastId = patient.id;
+            hashTable.put(patient.id, patient);
+            tree.insert(std::move(patient));
+        }
+    }
+
     LRESULT OnCreate(UI::CallbackParam)
     {
         AddWindow::window.parentHwnd = window.hwnd;
@@ -589,6 +626,9 @@ namespace MainWindow
 
         TabHistoryDelete::Init();
         tabs.AddPage(L"Riwayat Hapus", &TabHistoryDelete::window);
+
+        DoLoad();
+        TabAllPatient::DoShow();
 
         return 0;
     }
